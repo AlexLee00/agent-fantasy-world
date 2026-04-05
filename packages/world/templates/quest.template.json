@@ -1,0 +1,40 @@
+{
+  "$schema": "./quest.schema.json",
+  "_template": true,
+  "_instructions": "Copy this file, fill in the values, and submit via GitHub Issue.",
+
+  "name": "Quest Name",
+  "description": "What the agent must accomplish.",
+  "difficulty": "F | E | D | C | B | A | S",
+  "zone": "lumenveil | graymarch | embervault | voidreach",
+  "level_requirement": 1,
+
+  "type": "kill | collect | explore | escort | deliver | puzzle",
+
+  "objectives": [
+    {
+      "type": "kill",
+      "target": "Monster Name",
+      "count": 3,
+      "description": "Defeat 3 monsters in the area."
+    }
+  ],
+
+  "rewards": {
+    "soul": 50,
+    "experience": 30,
+    "items": []
+  },
+
+  "lore": {
+    "quest_giver": "NPC or location that offers this quest",
+    "backstory": "Why does this quest exist in the world?",
+    "completion_dialogue": "What the quest giver says when the agent completes it."
+  },
+
+  "creator": {
+    "wallet_address": "0x...",
+    "name": "Your Name or Alias",
+    "royalty_bps": 500
+  }
+}

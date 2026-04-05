@@ -1,0 +1,55 @@
+{
+  "$schema": "./monster.schema.json",
+  "_template": true,
+  "_instructions": "Copy this file, fill in the values, and submit via GitHub Issue.",
+
+  "name": "Monster Name",
+  "description": "Brief description of the monster and its behavior.",
+  "level": 1,
+  "type": "minion | regular | elite | zone_boss | world_boss",
+  "zone": "lumenveil | graymarch | embervault | voidreach",
+
+  "stats": {
+    "hp": 50,
+    "attack": 8,
+    "defense": 5,
+    "speed": 6
+  },
+
+  "behavior": {
+    "aggression": "passive | neutral | aggressive",
+    "pattern": "Description of combat behavior (e.g., charges when HP < 50%)",
+    "abilities": [
+      {
+        "name": "Ability Name",
+        "type": "physical | magical | debuff | heal",
+        "damage": 10,
+        "cooldown_ticks": 3,
+        "description": "What this ability does."
+      }
+    ]
+  },
+
+  "lore": {
+    "origin": "Where does this monster come from?",
+    "weakness": "What is it weak against?",
+    "flavor_text": "A short in-game description observers would see."
+  },
+
+  "rewards": {
+    "soul": 20,
+    "experience": 15,
+    "drop_items": [
+      {
+        "item_name": "Item Name",
+        "drop_rate_percent": 10
+      }
+    ]
+  },
+
+  "creator": {
+    "wallet_address": "0x...",
+    "name": "Your Name or Alias",
+    "royalty_bps": 500
+  }
+}
