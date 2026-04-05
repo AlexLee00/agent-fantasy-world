@@ -41,20 +41,20 @@ contract WorldMap is AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         // Zone 1: Lumenveil — 시작 시 즉시 언락
-        _addZone("Lumenveil", "빛의 베일", DangerLevel.SAFE, 1, 100, new uint256[](0));
+        _addZone("Lumenveil", unicode"빛의 베일", DangerLevel.SAFE, 1, 100, new uint256[](0));
         zones[1].isUnlocked = true;
         zones[1].unlockedAt = block.number;
         unlockedZones = 1;
 
         // Zone 2~4: 잠김 상태로 등록
         uint256[] memory z1conn = new uint256[](1); z1conn[0] = 1;
-        _addZone("Graymarch",  "회색 행진", DangerLevel.MEDIUM,  10,  200, z1conn);
+        _addZone("Graymarch",  unicode"회색 행진", DangerLevel.MEDIUM,  10,  200, z1conn);
 
         uint256[] memory z2conn = new uint256[](1); z2conn[0] = 2;
-        _addZone("Embervault", "잿불 지하", DangerLevel.DANGER,  50,  150, z2conn);
+        _addZone("Embervault", unicode"잿불 지하", DangerLevel.DANGER,  50,  150, z2conn);
 
         uint256[] memory z3conn = new uint256[](1); z3conn[0] = 3;
-        _addZone("Voidreach",  "공허의 끝", DangerLevel.EXTREME, 200,  50, z3conn);
+        _addZone("Voidreach",  unicode"공허의 끝", DangerLevel.EXTREME, 200,  50, z3conn);
     }
 
     function _addZone(
