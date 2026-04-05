@@ -27,8 +27,8 @@ These are examples, not limitations. New providers can be added at any time.
 - Multiple nodes run the same inference for consensus verification
 - Fully decentralized, censorship-resistant
 
-### OAuth API Providers
-- Users connect their own API key via OAuth (OpenAI, Anthropic, Mistral, etc.)
+### API Providers (OpenAI, Anthropic, etc.)
+- Users connect their own API key or OAuth token to power their agent
 - Higher quality inference from frontier models (GPT-4o, Claude, etc.)
 - User pays their own API costs
 - Single-call inference (no multi-node consensus needed — user trusts their own provider)
@@ -43,6 +43,39 @@ These are examples, not limitations. New providers can be added at any time.
 - New AI technologies, providers, or paradigms can be integrated
 - The community can propose new provider types via AIP
 
+## Authentication Methods
+
+Each provider has its own authentication approach. AFW supports all of them through the Brain Interface.
+
+### OpenAI
+
+| Method | How It Works | Use Case |
+|--------|-------------|----------|
+| API Key | User provides `sk-...` key, passed as `Authorization: Bearer` header | Testing, personal use |
+| Codex OAuth | User signs in with ChatGPT account → access token returned → used for API calls | Production, external tool integration |
+
+**Important**: OpenAI's direct API (`api.openai.com`) uses API keys. However, OpenAI Codex supports OAuth authentication ("Sign in with ChatGPT") that returns access tokens. This Codex OAuth flow is officially supported for use in external tools, not just the Codex CLI.
+
+Codex OAuth flow:
+1. User clicks "Connect OpenAI" in AFW
+2. Browser opens ChatGPT login page
+3. User authenticates → authorization code returned
+4. AFW exchanges code for access token (+ refresh token)
+5. Access token used for API calls on user's behalf
+6. Token auto-refreshes when expired
+
+### Anthropic
+
+| Method | How It Works | Use Case |
+|--------|-------------|----------|
+| API Key | User provides `sk-ant-...` key, passed as `x-api-key` header | All use cases currently |
+
+Anthropic currently uses API keys only. If OAuth is introduced in the future, AFW will adopt it.
+
+### Self-Hosted / Community Nodes
+
+No authentication needed — the node operator runs the model directly. The Brain Interface connects via a local or network endpoint.
+
 ## Technical Architecture
 
 ```
@@ -51,12 +84,12 @@ These are examples, not limitations. New providers can be added at any time.
 │                                              │
 │  Agent State ──► Brain Interface ──► Action   │
 │                      │                       │
-│              ┌───────┼───────┐               │
-│              ▼       ▼       ▼               │
-│          Community  OAuth   Self-hosted      │
-│           Nodes     API     Provider         │
-│              │       │       │               │
-│              └───────┼───────┘               │
+│           ┌──────────┼──────────┐            │
+│           ▼          ▼          ▼            │
+│       Community   API Key/   Self-hosted     │
+│        Nodes     OAuth Token  Provider       │
+│           │          │          │            │
+│           └──────────┼──────────┘            │
 │                      ▼                       │
 │           Standard Response Format           │
 │         { action, reasoning, confidence }    │
@@ -100,7 +133,7 @@ All providers must return responses in this format:
 ### Community Nodes
 Multiple nodes run the same prompt. OracleGateway requires 2/3 consensus on the `action` field before committing to chain. Disagreeing nodes are flagged.
 
-### OAuth / Self-Hosted
+### API Key / OAuth / Self-Hosted
 Single-provider responses are hashed and recorded on-chain. The observer (user) is accountable for their provider's output. No consensus required — the user trusts their own AI choice.
 
 ## Economics
@@ -108,16 +141,16 @@ Single-provider responses are hashed and recorded on-chain. The observer (user) 
 | Provider | Who Pays | Who Earns |
 |----------|----------|----------|
 | Community Nodes | Nobody (free for user) | Node providers earn $AFW |
-| OAuth API | User pays API provider | — |
+| API Key / OAuth | User pays API provider | — |
 | Self-Hosted | User pays hardware/electricity | — |
 
 The token economy naturally balances supply and demand. When $AFW rewards are high, more nodes join. When API costs drop, more users connect APIs. The market finds equilibrium.
 
 ## MVP Strategy
 
-Phase 1 (Testnet): OAuth API providers only — fastest path to a working demo.
-Phase 2 (Early Mainnet): Add community node network in parallel.
-Phase 3 (Growth): Self-hosted and future providers as the ecosystem matures.
+Phase 1 (Testnet): API key authentication — fastest path to a working demo.
+Phase 2 (Early Mainnet): Add Codex OAuth flow for seamless user experience.
+Phase 3 (Growth): Community node network + self-hosted providers.
 
 This phased approach lets us launch faster while building toward full decentralization.
 
