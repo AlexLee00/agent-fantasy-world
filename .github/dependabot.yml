@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # npm 패키지
+  # npm packages
   - package-ecosystem: "npm"
     directory: "/packages/contracts"
     schedule:
@@ -17,7 +17,7 @@ updates:
       - "dependencies"
       - "automated"
 
-  # Python 패키지
+  # Python packages
   - package-ecosystem: "pip"
     directory: "/packages/agents"
     schedule:
