@@ -1,14 +1,82 @@
-node_modules/
+# ============================================================
+# Agent Fantasy World — .gitignore
+# ============================================================
+# 완전공개 오픈소스 프로젝트: 외부 기여자가 보는 코드만 push
+# 내부 작업문서, 키값, 개인설정은 절대 올리지 않는다
+# ============================================================
+
+# ─── 1. Internal / Private (절대 공개 금지) ──────────────────
+# 인수인계, 진도체크, 내부 전략 문서
+docs/internal/
+_internal/
+*.인수인계*
+*handover*
+
+# Claude Code / Codex 구현 지시서
+specs/
+prompts/
+_specs/
+*.spec.prompt.md
+
+# 개인 메모
+notes/
+_notes/
+TODO.local.md
+
+# ─── 2. Secrets & Keys ──────────────────────────────────────
 .env
-.env.local
-dist/
-.DS_Store
-*.pyc
-__pycache__/
-.hardhat/
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+
+# ─── 3. Dependencies & Build Artifacts ──────────────────────
+node_modules/
+.pnp.*
+.yarn/
+
+# Hardhat / Solidity
 artifacts/
 cache/
 typechain-types/
 coverage/
+.hardhat/
+deployments/localhost/
+
+# Frontend
+dist/
 .next/
 out/
+.turbo/
+.vercel/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# ─── 4. IDE & OS ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ─── 5. Testing & Reports ──────────────────────────────────
+coverage/
+.nyc_output/
+gas-report.txt
+lcov.info
+
+# ─── 6. Logs ────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
