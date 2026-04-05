@@ -1,25 +1,25 @@
-name: 🐛 Bug Report
-description: 버그를 발견하셨나요? 알려주세요!
+name: Bug Report
+description: Found a bug? Let us know!
 title: "[Bug] "
-labels: ["bug", "needs-triage"]
+labels: ["type/bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        버그 리포트를 작성해주셔서 감사합니다! 최대한 자세하게 작성해주세요.
+        Thanks for taking the time to report a bug! Please fill out as much detail as possible.
 
   - type: textarea
     id: description
     attributes:
-      label: 버그 설명
-      description: 무슨 일이 일어났나요?
+      label: Bug Description
+      description: What happened?
     validations:
       required: true
 
   - type: textarea
     id: reproduction
     attributes:
-      label: 재현 방법
+      label: Steps to Reproduce
       value: |
         1.
         2.
@@ -30,14 +30,14 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: 예상한 동작
+      label: Expected Behavior
     validations:
       required: true
 
   - type: dropdown
     id: component
     attributes:
-      label: 관련 컴포넌트
+      label: Component
       options:
         - Smart Contract (contracts/)
         - Agent Engine (agents/)
@@ -52,15 +52,15 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: 로그 / 에러 메시지
+      label: Logs / Error Messages
       render: shell
 
   - type: checkboxes
     id: terms
     attributes:
-      label: 확인사항
+      label: Confirmation
       options:
-        - label: 동일한 이슈가 이미 등록되어 있지 않은지 확인했습니다
+        - label: I have searched existing issues and this is not a duplicate
           required: true
-        - label: 보안 취약점이 아닌 일반 버그입니다 (보안 취약점은 SECURITY.md를 참고해주세요)
+        - label: This is a regular bug, not a security vulnerability (see SECURITY.md for vulnerabilities)
           required: true

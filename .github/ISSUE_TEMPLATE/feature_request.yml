@@ -1,44 +1,55 @@
-name: ✨ Feature Request
-description: 새로운 기능을 제안해주세요
+name: Feature Request
+description: Suggest a new feature or improvement
 title: "[Feature] "
-labels: ["enhancement"]
+labels: ["type/feature"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe your idea clearly.
+
   - type: textarea
     id: problem
     attributes:
-      label: 해결하려는 문제
-      description: 어떤 문제나 불편함을 느끼셨나요?
+      label: Problem Statement
+      description: What problem does this feature solve?
     validations:
       required: true
 
   - type: textarea
     id: solution
     attributes:
-      label: 제안하는 해결책
-    validations:
-      required: true
-
-  - type: dropdown
-    id: layer
-    attributes:
-      label: 관련 레이어
-      options:
-        - Layer 0 — 블록체인 코어
-        - Layer 1 — 월드 데이터/콘텐츠
-        - Layer 2 — 렌더러/그래픽
-        - Layer 3 — 클라이언트/UI
-        - 기타
+      label: Proposed Solution
+      description: How would you like this to work?
     validations:
       required: true
 
   - type: textarea
     id: alternatives
     attributes:
-      label: 고려한 대안
+      label: Alternatives Considered
+      description: Have you considered any alternative approaches?
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Smart Contract (contracts/)
+        - Agent Engine (agents/)
+        - World Data (world/)
+        - Client / UI (client/)
+        - Node Software (node/)
+        - Tokenomics
+        - Governance
+        - Other
+    validations:
+      required: true
 
   - type: checkboxes
-    id: aip
+    id: terms
     attributes:
-      label: AIP 필요 여부
+      label: Confirmation
       options:
-        - label: 이 변경사항은 AIP(AFW Improvement Proposal)가 필요합니다
+        - label: I have searched existing issues and this is not a duplicate
+          required: true

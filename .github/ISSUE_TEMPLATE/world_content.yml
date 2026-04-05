@@ -1,65 +1,68 @@
-name: 🌍 World Content (Quest/Monster/Zone)
-description: 새 퀘스트, 몬스터, 아이템, Zone을 제안해주세요
+name: World Content Proposal
+description: Propose a new quest, monster, zone, or item
 title: "[World] "
-labels: ["world-content"]
+labels: ["scope/world"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose new content for the AFW world! Quests, monsters, zones, and items are all welcome.
+        Approved content earns you a permanent 5% $SOUL royalty.
+
   - type: dropdown
     id: content_type
     attributes:
-      label: 콘텐츠 유형
+      label: Content Type
       options:
-        - 퀘스트 (Quest)
-        - 몬스터 (Monster)
-        - 아이템 (Item)
+        - Quest
+        - Monster
         - Zone
+        - Item
         - NPC
-        - 스토리/세계관
-    validations:
-      required: true
-
-  - type: input
-    id: name
-    attributes:
-      label: 이름
-      placeholder: 예) 불꽃의 고블린 왕
+        - Event
+        - Other
     validations:
       required: true
 
   - type: textarea
     id: description
     attributes:
-      label: 설명
-      description: 어떤 콘텐츠인지 설명해주세요
+      label: Content Description
+      description: Describe your content in detail. Include stats, behavior, rewards, etc.
     validations:
       required: true
 
   - type: textarea
-    id: mechanics
-    attributes:
-      label: 게임 메커니즘
-      description: 스탯, 보상, 특수 능력 등
-      placeholder: |
-        HP: 200
-        ATK: 45
-        드롭: 불꽃 크리스탈 (5%), $SOUL 50-100
-        특수: 화염 브레스 (3턴마다)
-
-  - type: input
-    id: zone
-    attributes:
-      label: 등장 Zone
-      placeholder: 예) Embervault (던전)
-
-  - type: textarea
     id: lore
     attributes:
-      label: 스토리/설정 (선택)
-      description: Aethermoor 세계관에 맞는 배경 스토리
+      label: Lore / Story
+      description: How does this fit into the Aethermoor world?
+
+  - type: dropdown
+    id: zone
+    attributes:
+      label: Target Zone
+      options:
+        - Lumenveil (Village, Safe)
+        - Graymarch (Plains, Medium)
+        - Embervault (Dungeon, Danger)
+        - Voidreach (Abyss, Extreme)
+        - New Zone Proposal
+    validations:
+      required: true
+
+  - type: textarea
+    id: balance
+    attributes:
+      label: Balance Considerations
+      description: How should this be balanced? Difficulty, rewards, requirements?
 
   - type: checkboxes
-    id: license
+    id: terms
     attributes:
-      label: 저작권 확인
+      label: Confirmation
       options:
-        - label: 이 콘텐츠는 제가 직접 창작한 것이며 MIT 라이선스로 기여합니다
+        - label: This content is original and does not infringe on any copyright
+          required: true
+        - label: I agree to license this content under MIT for the AFW project
           required: true
