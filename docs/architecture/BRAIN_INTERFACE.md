@@ -101,6 +101,29 @@ Anthropic currently uses API keys only. If OAuth is introduced in the future, AF
 
 No authentication needed — the node operator runs the model directly. The Brain Interface connects via a local or network endpoint.
 
+## Community Research — OpenAI OAuth Status (2026-04)
+
+### Confirmed Facts
+- OpenAI Codex OAuth is **officially supported for external tools**, not just the Codex CLI
+- Multiple projects use this pattern: OpenClaw, term-llm, opencode-openai-codex-auth
+- OpenAI announced Roo Code partnership, confirming external OAuth tool support
+- Codex changelog (March 2026): custom model providers can now dynamically fetch and refresh bearer tokens
+
+### Known Issue: 429 Quota Regression
+- Since March 16, 2026, some Codex OAuth requests return `429 insufficient_quota` despite dashboard showing quota remaining (OpenClaw issue #54615)
+- This is an OpenAI-side regression, not an implementation error
+- ChatGPT web works fine with the same account
+- Re-authentication generates new tokens but the same profile hash is blocked
+
+### AFW Mitigation Strategy
+```
+1. Primary: OpenClaw OAuth (when working)
+2. Fallback: API Key (when OAuth has quota issues)
+3. Auto-detect: Try OpenClaw first → if 429, fall back to API key automatically
+```
+
+The Brain Interface's provider-agnostic design means this regression has zero architectural impact. We switch providers without changing any game logic.
+
 ## Technical Architecture
 
 ```
@@ -173,11 +196,11 @@ The token economy naturally balances supply and demand. When $AFW rewards are hi
 
 ## MVP Strategy
 
-Phase 1 (MVP): OpenClaw OAuth + API key fallback — leverages existing infrastructure from ai-agent-system.
+Phase 1 (MVP): OpenClaw OAuth + API key fallback — auto-detect and graceful degradation.
 Phase 2 (Testnet): Add community node network in parallel.
 Phase 3 (Growth): Self-hosted providers + future integrations.
 
-OpenClaw is already running on OPS infrastructure. AFW uses it from Day 1 instead of building custom OAuth.
+OpenClaw is already running on OPS infrastructure. AFW uses it from Day 1 with automatic fallback to API key when OAuth has issues.
 
 ---
 
