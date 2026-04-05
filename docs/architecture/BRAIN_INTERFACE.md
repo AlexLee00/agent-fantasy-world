@@ -43,86 +43,69 @@ These are examples, not limitations. New providers can be added at any time.
 - New AI technologies, providers, or paradigms can be integrated
 - The community can propose new provider types via AIP
 
-## Authentication Methods
+## Authentication & Provider Priority
 
-Each provider has its own authentication approach. AFW supports all of them through the Brain Interface.
+The Brain Interface supports multiple authentication methods with automatic fallback. The priority order is determined by availability and reliability.
 
-### OpenAI — OAuth via OpenClaw (Production)
+### MVP Provider Priority
 
-AFW uses **OpenClaw** as the OAuth token management layer for OpenAI. This pattern is battle-tested in production (ai-agent-system) where multiple AI agents share OAuth tokens 24/7.
+```
+1st: Claude Code CLI     → Subscription auth, no API key needed, proven in ai-agent-system
+2nd: OpenClaw OAuth      → OpenAI Codex OAuth token (when 429 regression is resolved)
+3rd: API Key             → Direct OPENAI_API_KEY or ANTHROPIC_API_KEY
+4th: Community Nodes     → Future (DePIN network)
+```
+
+### Claude Code CLI (Primary — MVP)
+
+AFW uses the **Claude Code CLI** as the primary brain provider. This is the same pattern used in ai-agent-system where Claude Code powers multiple AI agents 24/7.
+
+**How it works:**
+```
+/opt/homebrew/bin/claude -p --output-format json \
+  --model sonnet \
+  --max-turns 1 \
+  --system-prompt "You are an AI agent in Aethermoor..." \
+  "Agent state + situation prompt"
+```
+
+**Why Claude Code CLI:**
+- Already authenticated on the local machine (Claude Pro/Max subscription)
+- No API key or OAuth token management needed
+- No quota/rate limit issues (subscription-based, not API credit-based)
+- Proven in production: ai-agent-system uses `claude-code/sonnet` as primary route
+- Returns structured JSON via `--output-format json`
+- Handles model selection, context, and response formatting
+
+**Reference implementation:** `ai-agent-system/packages/core/lib/llm-fallback.js` → `_callClaudeCode()`
+
+**Runtime profile pattern from ai-agent-system:**
+```javascript
+primary_routes:  ['claude-code/sonnet', 'openai-oauth/gpt-5.4']
+fallback_routes: ['local/qwen2.5-7b', 'google-gemini-cli/gemini-2.5-flash']
+```
+
+### OpenClaw OAuth (Secondary — when OpenAI 429 is resolved)
+
+OpenClaw manages OpenAI Codex OAuth tokens. This pattern is battle-tested in ai-agent-system.
 
 **Token flow:**
 ```
-OpenClaw (:18789)
-    │
-    ▼
-~/.openclaw/agents/main/agent/auth-profiles.json
-    │  (provider: 'openai-codex', type: 'oauth')
-    ▼
-AFW Agent Engine reads OAuth token
-    │
-    ▼
-https://api.openai.com/v1/chat/completions
-    + Authorization: Bearer ${oauth_token}
+OpenClaw (:18789) → auth-profiles.json → Bearer token → api.openai.com
 ```
 
-**How it works:**
-1. OpenClaw runs as a local service (port 18789)
-2. User authenticates via `openclaw onboard` → "Sign in with ChatGPT"
-3. OAuth tokens are stored in `auth-profiles.json` with auto-refresh
-4. AFW Agent Engine reads the token directly from OpenClaw's auth store
-5. Token is used as Bearer auth for OpenAI API calls
-6. OpenClaw handles token refresh automatically
+**Current status:** OpenAI 429 quota regression since March 16, 2026 (OpenClaw #54615). OpenClaw OAuth path is architecturally correct but blocked by OpenAI-side issue. Will activate when resolved.
 
-**Why OpenClaw:**
-- Already running on OPS infrastructure (Mac Studio, 24/7)
-- Proven in production with multiple AI agents
-- Handles token lifecycle (auth, refresh, expiry) automatically
-- Supports multiple provider profiles
-- No need to build custom OAuth infrastructure
+### API Key (Fallback)
 
-### OpenAI — API Key (Fallback)
-
-| Method | How It Works | Use Case |
-|--------|-------------|----------|
-| API Key | User provides `sk-...` key, passed as `Authorization: Bearer` header | Environments without OpenClaw, quick testing |
-
-Direct API keys remain a supported fallback for environments where OpenClaw is not available.
-
-### Anthropic
-
-| Method | How It Works | Use Case |
-|--------|-------------|----------|
-| API Key | User provides `sk-ant-...` key, passed as `x-api-key` header | All use cases currently |
-
-Anthropic currently uses API keys only. If OAuth is introduced in the future, AFW will adopt it.
+| Provider | Header | Use Case |
+|----------|--------|----------|
+| OpenAI | `Authorization: Bearer sk-...` | When Claude Code and OpenClaw unavailable |
+| Anthropic | `x-api-key: sk-ant-...` | Direct Anthropic API access |
 
 ### Self-Hosted / Community Nodes
 
-No authentication needed — the node operator runs the model directly. The Brain Interface connects via a local or network endpoint.
-
-## Community Research — OpenAI OAuth Status (2026-04)
-
-### Confirmed Facts
-- OpenAI Codex OAuth is **officially supported for external tools**, not just the Codex CLI
-- Multiple projects use this pattern: OpenClaw, term-llm, opencode-openai-codex-auth
-- OpenAI announced Roo Code partnership, confirming external OAuth tool support
-- Codex changelog (March 2026): custom model providers can now dynamically fetch and refresh bearer tokens
-
-### Known Issue: 429 Quota Regression
-- Since March 16, 2026, some Codex OAuth requests return `429 insufficient_quota` despite dashboard showing quota remaining (OpenClaw issue #54615)
-- This is an OpenAI-side regression, not an implementation error
-- ChatGPT web works fine with the same account
-- Re-authentication generates new tokens but the same profile hash is blocked
-
-### AFW Mitigation Strategy
-```
-1. Primary: OpenClaw OAuth (when working)
-2. Fallback: API Key (when OAuth has quota issues)
-3. Auto-detect: Try OpenClaw first → if 429, fall back to API key automatically
-```
-
-The Brain Interface's provider-agnostic design means this regression has zero architectural impact. We switch providers without changing any game logic.
+No authentication needed — the node operator runs the model directly.
 
 ## Technical Architecture
 
@@ -132,12 +115,12 @@ The Brain Interface's provider-agnostic design means this regression has zero ar
 │                                              │
 │  Agent State ──► Brain Interface ──► Action   │
 │                      │                       │
-│         ┌────────────┼────────────┐          │
-│         ▼            ▼            ▼          │
-│     OpenClaw      API Key     Community      │
-│      OAuth       (fallback)    Nodes         │
-│         │            │            │          │
-│         └────────────┼────────────┘          │
+│       ┌──────────────┼──────────────┐        │
+│       ▼              ▼              ▼        │
+│  Claude Code    OpenClaw OAuth   API Key     │
+│   CLI (1st)     OpenAI (2nd)    fallback     │
+│       │              │              │        │
+│       └──────────────┼──────────────┘        │
 │                      ▼                       │
 │           Standard Response Format           │
 │         { action, reasoning, confidence }    │
@@ -176,12 +159,27 @@ All providers must return responses in this format:
 | `dialogue` | string | What the agent says (visible to observers) |
 | `emotion` | string | Emotional state for UI rendering |
 
+## Community Research — OAuth Status (2026-04)
+
+### OpenAI OAuth
+- Codex OAuth officially supported for external tools
+- Known 429 regression since March 16, 2026 (OpenClaw #54615)
+- Multiple projects affected: OpenClaw, term-llm, opencode-openai-codex-auth
+
+### Claude Code
+- Claude Code CLI works as a non-interactive inference endpoint
+- Subscription-based auth avoids API quota issues entirely
+- ai-agent-system uses `claude-code/sonnet` as primary route in production
+
+### AFW Strategy
+Claude Code CLI bypasses the OpenAI 429 issue completely. When OpenAI fixes the regression, OpenClaw OAuth becomes the secondary provider automatically. The Brain Interface's pluggable design means zero code changes needed.
+
 ## On-Chain Verification
 
 ### Community Nodes
 Multiple nodes run the same prompt. OracleGateway requires 2/3 consensus on the `action` field before committing to chain. Disagreeing nodes are flagged.
 
-### API Key / OAuth / Self-Hosted
+### CLI / OAuth / API Key / Self-Hosted
 Single-provider responses are hashed and recorded on-chain. The observer (user) is accountable for their provider's output. No consensus required — the user trusts their own AI choice.
 
 ## Economics
@@ -189,18 +187,15 @@ Single-provider responses are hashed and recorded on-chain. The observer (user) 
 | Provider | Who Pays | Who Earns |
 |----------|----------|----------|
 | Community Nodes | Nobody (free for user) | Node providers earn $AFW |
+| Claude Code CLI | User pays Claude subscription | — |
 | OpenClaw OAuth / API Key | User pays API provider | — |
 | Self-Hosted | User pays hardware/electricity | — |
 
-The token economy naturally balances supply and demand. When $AFW rewards are high, more nodes join. When API costs drop, more users connect APIs. The market finds equilibrium.
-
 ## MVP Strategy
 
-Phase 1 (MVP): OpenClaw OAuth + API key fallback — auto-detect and graceful degradation.
-Phase 2 (Testnet): Add community node network in parallel.
+Phase 1 (MVP): Claude Code CLI primary + API key fallback.
+Phase 2 (Testnet): Add OpenClaw OAuth (when OpenAI 429 resolved) + community nodes.
 Phase 3 (Growth): Self-hosted providers + future integrations.
-
-OpenClaw is already running on OPS infrastructure. AFW uses it from Day 1 with automatic fallback to API key when OAuth has issues.
 
 ---
 
