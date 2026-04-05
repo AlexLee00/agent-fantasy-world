@@ -47,22 +47,47 @@ These are examples, not limitations. New providers can be added at any time.
 
 Each provider has its own authentication approach. AFW supports all of them through the Brain Interface.
 
-### OpenAI
+### OpenAI — OAuth via OpenClaw (Production)
+
+AFW uses **OpenClaw** as the OAuth token management layer for OpenAI. This pattern is battle-tested in production (ai-agent-system) where multiple AI agents share OAuth tokens 24/7.
+
+**Token flow:**
+```
+OpenClaw (:18789)
+    │
+    ▼
+~/.openclaw/agents/main/agent/auth-profiles.json
+    │  (provider: 'openai-codex', type: 'oauth')
+    ▼
+AFW Agent Engine reads OAuth token
+    │
+    ▼
+https://api.openai.com/v1/chat/completions
+    + Authorization: Bearer ${oauth_token}
+```
+
+**How it works:**
+1. OpenClaw runs as a local service (port 18789)
+2. User authenticates via `openclaw onboard` → "Sign in with ChatGPT"
+3. OAuth tokens are stored in `auth-profiles.json` with auto-refresh
+4. AFW Agent Engine reads the token directly from OpenClaw's auth store
+5. Token is used as Bearer auth for OpenAI API calls
+6. OpenClaw handles token refresh automatically
+
+**Why OpenClaw:**
+- Already running on OPS infrastructure (Mac Studio, 24/7)
+- Proven in production with multiple AI agents
+- Handles token lifecycle (auth, refresh, expiry) automatically
+- Supports multiple provider profiles
+- No need to build custom OAuth infrastructure
+
+### OpenAI — API Key (Fallback)
 
 | Method | How It Works | Use Case |
 |--------|-------------|----------|
-| API Key | User provides `sk-...` key, passed as `Authorization: Bearer` header | Testing, personal use |
-| Codex OAuth | User signs in with ChatGPT account → access token returned → used for API calls | Production, external tool integration |
+| API Key | User provides `sk-...` key, passed as `Authorization: Bearer` header | Environments without OpenClaw, quick testing |
 
-**Important**: OpenAI's direct API (`api.openai.com`) uses API keys. However, OpenAI Codex supports OAuth authentication ("Sign in with ChatGPT") that returns access tokens. This Codex OAuth flow is officially supported for use in external tools, not just the Codex CLI.
-
-Codex OAuth flow:
-1. User clicks "Connect OpenAI" in AFW
-2. Browser opens ChatGPT login page
-3. User authenticates → authorization code returned
-4. AFW exchanges code for access token (+ refresh token)
-5. Access token used for API calls on user's behalf
-6. Token auto-refreshes when expired
+Direct API keys remain a supported fallback for environments where OpenClaw is not available.
 
 ### Anthropic
 
@@ -84,12 +109,12 @@ No authentication needed — the node operator runs the model directly. The Brai
 │                                              │
 │  Agent State ──► Brain Interface ──► Action   │
 │                      │                       │
-│           ┌──────────┼──────────┐            │
-│           ▼          ▼          ▼            │
-│       Community   API Key/   Self-hosted     │
-│        Nodes     OAuth Token  Provider       │
-│           │          │          │            │
-│           └──────────┼──────────┘            │
+│         ┌────────────┼────────────┐          │
+│         ▼            ▼            ▼          │
+│     OpenClaw      API Key     Community      │
+│      OAuth       (fallback)    Nodes         │
+│         │            │            │          │
+│         └────────────┼────────────┘          │
 │                      ▼                       │
 │           Standard Response Format           │
 │         { action, reasoning, confidence }    │
@@ -141,18 +166,18 @@ Single-provider responses are hashed and recorded on-chain. The observer (user) 
 | Provider | Who Pays | Who Earns |
 |----------|----------|----------|
 | Community Nodes | Nobody (free for user) | Node providers earn $AFW |
-| API Key / OAuth | User pays API provider | — |
+| OpenClaw OAuth / API Key | User pays API provider | — |
 | Self-Hosted | User pays hardware/electricity | — |
 
 The token economy naturally balances supply and demand. When $AFW rewards are high, more nodes join. When API costs drop, more users connect APIs. The market finds equilibrium.
 
 ## MVP Strategy
 
-Phase 1 (Testnet): API key authentication — fastest path to a working demo.
-Phase 2 (Early Mainnet): Add Codex OAuth flow for seamless user experience.
-Phase 3 (Growth): Community node network + self-hosted providers.
+Phase 1 (MVP): OpenClaw OAuth + API key fallback — leverages existing infrastructure from ai-agent-system.
+Phase 2 (Testnet): Add community node network in parallel.
+Phase 3 (Growth): Self-hosted providers + future integrations.
 
-This phased approach lets us launch faster while building toward full decentralization.
+OpenClaw is already running on OPS infrastructure. AFW uses it from Day 1 instead of building custom OAuth.
 
 ---
 
