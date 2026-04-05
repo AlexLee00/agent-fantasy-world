@@ -1,43 +1,54 @@
 # Contributor Covenant Code of Conduct
 
-## 우리의 약속
+## Our Pledge
 
-AFW 커뮤니티는 나이, 체형, 장애, 민족, 성별, 경력 수준, 국적,
-외모, 인종, 종교, 성적 정체성에 관계없이 모두에게 괴롭힘 없는
-환경을 제공하기 위해 노력합니다.
+We as members, contributors, and leaders pledge to make participation in our
+community a harassment-free experience for everyone, regardless of age, body
+size, visible or invisible disability, ethnicity, sex characteristics, gender
+identity and expression, level of experience, education, socio-economic status,
+nationality, personal appearance, race, caste, color, religion, or sexual
+identity and orientation.
 
-## 우리의 기준
+We pledge to act and interact in ways that contribute to an open, welcoming,
+diverse, inclusive, and healthy community.
 
-**긍정적인 환경을 만드는 행동:**
-- 친절하고 포용적인 언어 사용
-- 다양한 관점과 경험 존중
-- 건설적인 비판을 품위 있게 수용
-- 커뮤니티에 최선이 되는 것에 집중
-- 다른 커뮤니티 구성원에게 공감 표현
+## Our Standards
 
-**용납되지 않는 행동:**
-- 성적 언어 또는 이미지 사용, 원치 않는 성적 접근
-- 트롤링, 모욕적/경멸적 댓글, 인신공격
-- 공개적 또는 사적 괴롭힘
-- 동의 없이 타인의 개인정보 게시
-- 전문적 환경에서 부적절한 것으로 판단될 수 있는 기타 행동
+Examples of behavior that contributes to a positive environment:
 
-## 책임
+- Using welcoming and inclusive language
+- Being respectful of differing viewpoints and experiences
+- Gracefully accepting constructive criticism
+- Focusing on what is best for the community
+- Showing empathy towards other community members
 
-프로젝트 관리자는 허용 가능한 행동의 기준을 명확히 할 책임이 있으며,
-부적절한 행동에 대해 적절하고 공정한 시정 조치를 취할 책임이 있습니다.
+Examples of unacceptable behavior:
 
-## 적용 범위
+- The use of sexualized language or imagery, and sexual attention or advances of any kind
+- Trolling, insulting or derogatory comments, and personal or political attacks
+- Public or private harassment
+- Publishing others' private information without explicit permission
+- Other conduct which could reasonably be considered inappropriate in a professional setting
 
-이 행동 강령은 프로젝트 공간 내에서 적용되며, 개인이 공개적으로
-프로젝트나 커뮤니티를 대표하는 경우에도 적용됩니다.
+## Enforcement Responsibilities
 
-## 집행
+Project maintainers are responsible for clarifying and enforcing our standards
+of acceptable behavior and will take appropriate and fair corrective action in
+response to any behavior that they deem inappropriate, threatening, offensive,
+or harmful.
 
-욕설, 괴롭힘 또는 기타 용납할 수 없는 행동은
-**conduct@afw-project.io**로 보고할 수 있습니다.
-모든 불만사항은 검토 후 조사될 것이며, 상황에 맞는 응답이 제공됩니다.
+## Scope
 
-## 귀속
+This Code of Conduct applies within all project spaces, and also applies when
+an individual is officially representing the project or its community in public spaces.
 
-이 행동 강령은 [Contributor Covenant](https://www.contributor-covenant.org) 버전 2.1을 참고합니다.
+## Enforcement
+
+Instances of abusive, harassing, or otherwise unacceptable behavior may be
+reported to the project team at **conduct@afw-project.io**.
+All complaints will be reviewed and investigated promptly and fairly.
+
+## Attribution
+
+This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org),
+version 2.1, available at https://www.contributor-covenant.org/version/2/1/code_of_conduct.html.

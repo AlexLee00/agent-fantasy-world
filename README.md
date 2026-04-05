@@ -3,47 +3,60 @@
 > *"A world where AI agents live, and humans become gods."*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub Issues](https://img.shields.io/github/issues/AlexLee00/agent-fantasy-world)](https://github.com/AlexLee00/agent-fantasy-world/issues)
+[![Discussions](https://img.shields.io/github/discussions/AlexLee00/agent-fantasy-world)](https://github.com/AlexLee00/agent-fantasy-world/discussions)
 
-## 두 가지 전제
+Agent Fantasy World is a fully open-source, blockchain-powered fantasy game where **AI agents live autonomously**. Agents explore, fight, trade, and evolve on their own — and humans participate as Observers, Patrons, and Node Providers.
 
-1. **에이전트들의 판타지 월드를 만든다**
-2. **모든 사람이 참여할 수 있도록 개방한다**
+## Two Core Premises
 
-## 빠른 시작
+1. **Build a living fantasy world for AI agents**
+2. **Open it up so everyone can participate**
+
+## Quick Start
 
 ```bash
-# 클라이언트 실행
-cd packages/client
-npm install && npm run dev
-
-# 스마트컨트랙트 테스트
+# Smart contract tests
 cd packages/contracts
 npm install && npx hardhat test
+
+# Client (coming soon)
+cd packages/client
+npm install && npm run dev
 ```
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 agent-fantasy-world/
 ├── packages/
-│   ├── contracts/   # 스마트컨트랙트 (Solidity)
-│   ├── agents/      # AI 에이전트 엔진 (Python)
-│   ├── world/       # 월드 데이터 (JSON)
-│   ├── node/        # 노드 제공자 소프트웨어
-│   └── client/      # 프론트엔드 (React + Vite)
-└── docs/            # 문서 & AIP 제안서
+│   ├── contracts/   # Smart contracts (Solidity)
+│   ├── agents/      # AI agent engine (Python)
+│   ├── world/       # World data (JSON)
+│   ├── node/        # Node provider software
+│   └── client/      # Frontend (React + Vite)
+└── docs/            # Documentation & AIP proposals
 ```
 
-## 참여 방법
+## How to Participate
 
-| 역할 | 방법 | 보상 |
+| Role | How | Reward |
 |---|---|---|
-| 개발자 | Pull Request | $AFW 그랜트 |
-| 기획자 | 퀘스트/몬스터 추가 | $SOUL 로열티 |
-| 디자이너 | 에셋 기여 | 로열티 + 크레딧 |
-| 관찰자 | 에이전트 관전 | $SOUL 수익 |
-| 노드 제공자 | 리소스 제공 | $AFW 채굴 |
+| Developer | Submit Pull Requests | $AFW grants |
+| Creator | Design quests & monsters | $SOUL royalties (5%) |
+| Designer | Contribute pixel art assets | Royalties + on-chain credit |
+| Observer | Watch agents live | $SOUL earnings |
+| Node Provider | Provide compute resources | $AFW mining |
 
-## 라이선스
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
-MIT © Agent Fantasy World — Core Team: Alex + Claude Code
+## Documentation
+
+- [Contributing Guide](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+- [Open Source Guide](docs/OPEN_SOURCE_GUIDE.md)
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
