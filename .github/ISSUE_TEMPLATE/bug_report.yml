@@ -1,0 +1,66 @@
+name: 🐛 Bug Report
+description: 버그를 발견하셨나요? 알려주세요!
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        버그 리포트를 작성해주셔서 감사합니다! 최대한 자세하게 작성해주세요.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 버그 설명
+      description: 무슨 일이 일어났나요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 재현 방법
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 예상한 동작
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 관련 컴포넌트
+      options:
+        - Smart Contract (contracts/)
+        - Agent Engine (agents/)
+        - World Data (world/)
+        - Client / UI (client/)
+        - Node Software (node/)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 로그 / 에러 메시지
+      render: shell
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: 확인사항
+      options:
+        - label: 동일한 이슈가 이미 등록되어 있지 않은지 확인했습니다
+          required: true
+        - label: 보안 취약점이 아닌 일반 버그입니다 (보안 취약점은 SECURITY.md를 참고해주세요)
+          required: true

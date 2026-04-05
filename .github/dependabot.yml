@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # npm 패키지
+  - package-ecosystem: "npm"
+    directory: "/packages/contracts"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "automated"
+
+  - package-ecosystem: "npm"
+    directory: "/packages/client"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "automated"
+
+  # Python 패키지
+  - package-ecosystem: "pip"
+    directory: "/packages/agents"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "automated"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "automated"

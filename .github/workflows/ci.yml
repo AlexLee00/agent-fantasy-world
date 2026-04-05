@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  contracts:
+    name: Smart Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: cd packages/contracts && npm ci
+      - run: cd packages/contracts && npx hardhat compile
+      - run: cd packages/contracts && npx hardhat test
+      - run: cd packages/contracts && npx hardhat coverage
+
+  agents:
+    name: Agent Engine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: cd packages/agents && pip install -r requirements.txt
+      - run: cd packages/agents && pytest --cov
+
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+
+  security:
+    name: Security Scan (Slither)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crytic/slither-action@v0.4.0
+        with:
+          target: 'packages/contracts/src/'
+          fail-on: high
+
+  world-validate:
+    name: World Data Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate JSON schemas
+        run: node scripts/validate-world-data.js

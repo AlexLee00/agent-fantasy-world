@@ -1,0 +1,29 @@
+# CODEOWNERS — AFW 코드 소유권
+# 변경 시 해당 CODEOWNER의 리뷰 필수
+
+# 기본 — 코어팀
+*                                   @alexlee-afw
+
+# 스마트컨트랙트 — 2명 리뷰 필수
+/packages/contracts/                @alexlee-afw
+/packages/contracts/src/core/       @alexlee-afw
+/packages/contracts/src/game/       @alexlee-afw
+/packages/contracts/src/economy/    @alexlee-afw
+/packages/contracts/src/governance/ @alexlee-afw
+
+# 에이전트 엔진
+/packages/agents/                   @alexlee-afw
+
+# 노드 소프트웨어
+/packages/node/                     @alexlee-afw
+
+# 월드 데이터 — 커뮤니티 기여 가능 (코어팀 최종 승인)
+/packages/world/                    @alexlee-afw
+
+# CI/CD — 코어팀만
+/.github/workflows/                 @alexlee-afw
+
+# 문서 — 누구나 (코어팀 승인)
+/docs/                              @alexlee-afw
+/README.md                          @alexlee-afw
+/CONTRIBUTING.md                    @alexlee-afw

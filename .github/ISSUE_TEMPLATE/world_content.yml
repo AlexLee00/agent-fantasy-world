@@ -1,0 +1,65 @@
+name: 🌍 World Content (Quest/Monster/Zone)
+description: 새 퀘스트, 몬스터, 아이템, Zone을 제안해주세요
+title: "[World] "
+labels: ["world-content"]
+body:
+  - type: dropdown
+    id: content_type
+    attributes:
+      label: 콘텐츠 유형
+      options:
+        - 퀘스트 (Quest)
+        - 몬스터 (Monster)
+        - 아이템 (Item)
+        - Zone
+        - NPC
+        - 스토리/세계관
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: 이름
+      placeholder: 예) 불꽃의 고블린 왕
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 설명
+      description: 어떤 콘텐츠인지 설명해주세요
+    validations:
+      required: true
+
+  - type: textarea
+    id: mechanics
+    attributes:
+      label: 게임 메커니즘
+      description: 스탯, 보상, 특수 능력 등
+      placeholder: |
+        HP: 200
+        ATK: 45
+        드롭: 불꽃 크리스탈 (5%), $SOUL 50-100
+        특수: 화염 브레스 (3턴마다)
+
+  - type: input
+    id: zone
+    attributes:
+      label: 등장 Zone
+      placeholder: 예) Embervault (던전)
+
+  - type: textarea
+    id: lore
+    attributes:
+      label: 스토리/설정 (선택)
+      description: Aethermoor 세계관에 맞는 배경 스토리
+
+  - type: checkboxes
+    id: license
+    attributes:
+      label: 저작권 확인
+      options:
+        - label: 이 콘텐츠는 제가 직접 창작한 것이며 MIT 라이선스로 기여합니다
+          required: true

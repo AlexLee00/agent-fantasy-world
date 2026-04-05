@@ -1,0 +1,51 @@
+name: 📜 AIP (AFW Improvement Proposal)
+description: 중요한 변경사항을 제안해주세요
+title: "[AIP-XXXX] "
+labels: ["aip", "discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        AIP는 토크노믹스, 스마트컨트랙트 핵심 로직, 거버넌스 규칙 변경에 사용됩니다.
+        먼저 GitHub Discussions에서 논의 후 이슈로 공식 제안해주세요.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: AIP 유형
+      options:
+        - Core — 블록체인/컨트랙트 핵심 변경
+        - Economy — 토크노믹스/경제 파라미터
+        - World — 월드 규칙/Zone 개방
+        - Governance — 거버넌스 구조
+        - Meta — AIP 프로세스 자체
+    validations:
+      required: true
+
+  - type: textarea
+    id: abstract
+    attributes:
+      label: Abstract (한 문단 요약)
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation (왜 필요한가?)
+    validations:
+      required: true
+
+  - type: textarea
+    id: specification
+    attributes:
+      label: Specification (구체적인 변경 내용)
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact (경제적/기술적/커뮤니티 영향)
+    validations:
+      required: true
