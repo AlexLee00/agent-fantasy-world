@@ -1,53 +1,57 @@
-# Security Policy — Agent Fantasy World
+# Security Policy
 
-## 지원 버전
+## Supported Versions
 
-| 버전 | 지원 여부 |
-|---|---|
-| main (최신) | ✅ 지원 |
-| 이전 버전 | ❌ 미지원 |
+| Version | Supported |
+|---------|-------------------|
+| 0.x.x | :white_check_mark: |
 
-## 취약점 보고
+## Reporting a Vulnerability
 
-**⚠️ 보안 취약점을 공개 이슈로 등록하지 마세요.**
+We take security seriously at Agent Fantasy World. If you discover a security vulnerability,
+please report it responsibly.
 
-### 보고 방법
+### How to Report
 
-1. **GitHub Private Vulnerability Reporting** (권장)
-   - Repository → Security → Report a vulnerability
+1. **DO NOT** open a public GitHub issue for security vulnerabilities
+2. Email **security@afw-project.io** with:
+   - Description of the vulnerability
+   - Steps to reproduce
+   - Potential impact
+   - Suggested fix (if any)
+3. You will receive an acknowledgment within **48 hours**
+4. We will work with you to understand and address the issue
 
-2. **이메일**: security@afw-project.io
-   - GPG 키: [공개키 링크 추가 예정]
+### Smart Contract Vulnerabilities
 
-### 보고 시 포함할 내용
+For smart contract vulnerabilities, please include:
+- The affected contract(s)
+- The function(s) involved
+- Proof of concept (if possible)
+- Estimated severity (Critical / High / Medium / Low)
 
-- 취약점 유형 (예: SQL 인젝션, 스마트컨트랙트 재진입 공격)
-- 취약점이 있는 파일 경로 및 라인 번호
-- 재현 방법 (단계별)
-- 잠재적 영향
-- 가능한 경우 수정 제안
+### Bug Bounty
 
-### 대응 프로세스
+We plan to launch a formal bug bounty program before mainnet.
+In the meantime, significant vulnerability reports will be rewarded with $AFW tokens.
 
-| 단계 | 소요 시간 |
-|---|---|
-| 보고 수신 확인 | 48시간 내 |
-| 초기 평가 | 5영업일 내 |
-| 수정 및 패치 | 중요도에 따라 결정 |
-| 공개 공시 | 패치 배포 후 |
+| Severity | Reward |
+|----------|--------|
+| Critical | 50,000 $AFW |
+| High | 20,000 $AFW |
+| Medium | 5,000 $AFW |
+| Low | 1,000 $AFW |
 
-## 스마트컨트랙트 보안
+### Disclosure Policy
 
-AFW 스마트컨트랙트는 다음을 준수합니다:
-- 배포 전 외부 감사 (Audit) 진행
-- 핵심 컨트랙트 변경 시 타임락 (48시간)
-- 멀티시그 관리 (초기 3/5, 이후 DAO로 이양)
+- We follow responsible disclosure practices
+- We will coordinate with reporters on disclosure timeline
+- Public disclosure after fix is deployed and verified
+- Credit will be given to reporters (unless anonymity is requested)
 
-## 버그 바운티
+## Security Best Practices for Contributors
 
-취약점 심각도에 따른 보상 (예정):
-- Critical: 최대 50,000 $AFW
-- High: 최대 10,000 $AFW
-- Medium: 최대 2,000 $AFW
-
-자세한 내용은 [bug bounty 페이지]()를 참조하세요.
+- Never commit secrets, private keys, or API keys
+- Use `.env` files for local configuration (included in `.gitignore`)
+- Follow the principle of least privilege in smart contract access control
+- All smart contract changes require security review
