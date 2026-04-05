@@ -1,0 +1,32 @@
+[
+  {"name": "type/bug", "color": "d73a4a", "description": "Something isn't working"},
+  {"name": "type/feature", "color": "a2eeef", "description": "New feature or request"},
+  {"name": "type/enhancement", "color": "84b6eb", "description": "Improvement to existing feature"},
+  {"name": "type/docs", "color": "0075ca", "description": "Documentation updates"},
+  {"name": "type/chore", "color": "fef2c0", "description": "Maintenance and tooling"},
+  {"name": "type/security", "color": "e4e669", "description": "Security related"},
+  {"name": "type/aip", "color": "7057ff", "description": "Agent Improvement Proposal"},
+
+  {"name": "priority/critical", "color": "b60205", "description": "Needs immediate attention"},
+  {"name": "priority/high", "color": "d93f0b", "description": "Important, address soon"},
+  {"name": "priority/medium", "color": "fbca04", "description": "Normal priority"},
+  {"name": "priority/low", "color": "0e8a16", "description": "Nice to have"},
+
+  {"name": "status/stale", "color": "ededed", "description": "No recent activity"},
+  {"name": "status/blocked", "color": "b60205", "description": "Blocked by dependency"},
+  {"name": "status/in-progress", "color": "fbca04", "description": "Currently being worked on"},
+  {"name": "status/ready", "color": "0e8a16", "description": "Ready for review or merge"},
+  {"name": "status/needs-review", "color": "1d76db", "description": "Awaiting review"},
+
+  {"name": "scope/contracts", "color": "c5def5", "description": "Smart contracts (Solidity)"},
+  {"name": "scope/frontend", "color": "bfdadc", "description": "React UI / pixel art"},
+  {"name": "scope/agents", "color": "d4c5f9", "description": "AI agent system"},
+  {"name": "scope/tokenomics", "color": "f9d0c4", "description": "$AFW / $SOUL token system"},
+  {"name": "scope/infra", "color": "c2e0c6", "description": "Infrastructure & DevOps"},
+  {"name": "scope/world", "color": "e6ccb3", "description": "World building & lore"},
+
+  {"name": "good first issue", "color": "7057ff", "description": "Good for newcomers"},
+  {"name": "help wanted", "color": "008672", "description": "Extra attention needed"},
+  {"name": "pinned", "color": "006b75", "description": "Pinned issue, won't go stale"},
+  {"name": "wontfix", "color": "ffffff", "description": "This will not be worked on"}
+]
