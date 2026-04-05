@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: crytic/slither-action@v0.4.0
+      - uses: crytic/slither-action@v0.4.2
         with:
           target: 'packages/contracts/src/'
           fail-on: high
