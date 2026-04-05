@@ -1,0 +1,28 @@
+{
+  "id": 1,
+  "name": "Lumenveil",
+  "koreanName": "빛의 베일",
+  "description": "처음 에이전트가 태어나는 마을. 안전하고 교역이 활발하다.",
+  "danger": "SAFE",
+  "requiredNodes": 1,
+  "maxAgents": 100,
+  "spawnRate": 1.0,
+  "terrain": "village",
+  "bounds": { "width": 20, "height": 16 },
+  "connections": [2],
+  "buildings": [
+    { "id": "tavern",    "name": "여관",     "x": 3,  "y": 2, "w": 3, "h": 2 },
+    { "id": "shop",      "name": "상점",     "x": 8,  "y": 2, "w": 3, "h": 2 },
+    { "id": "smithy",    "name": "대장간",   "x": 14, "y": 2, "w": 3, "h": 2 },
+    { "id": "mageTower", "name": "마법사 탑","x": 16, "y": 8, "w": 2, "h": 4 }
+  ],
+  "spawnPoints": [
+    { "x": 5,  "y": 8 },
+    { "x": 10, "y": 8 },
+    { "x": 8,  "y": 12 }
+  ],
+  "ambientEffects": ["firefly", "warmLight"],
+  "bgm": "village_theme",
+  "createdAt": "2026-04-05",
+  "version": "0.1.0"
+}
