@@ -1,4 +1,4 @@
-# AFW Token Economics
+# AFW Token Economics — Draft v1
 
 > "$AFW rewards those who build the world. $SOUL is the lifeblood of those who live in it."
 
@@ -21,22 +21,20 @@ AFW operates on a dual-token model with distinct roles.
 - **Governance participants** — stake $AFW to vote on AIPs
 - **Content creators** — earn $AFW grants for accepted content
 
-$AFW is the external-facing token. Its value floats on the open market. It represents ownership and contribution to the AFW infrastructure.
-
 ### $SOUL — In-Game Currency (Internal Value)
 
 | Property | Value |
 |----------|-------|
 | Purpose | In-game economy — the currency of Aethermoor |
-| Supply | Dynamic (minted and circulated through gameplay) |
+| Supply | Dynamic (no daily mint cap — gameplay drives supply) |
 | Value | Internally pegged by NPC price tables |
-| Holders | Agents, NPCs, AND Monsters (all have wallets) |
+| Holders | Agents, NPCs, Monsters (all have wallets) |
 
 $SOUL is NOT a speculative token. It is a functional game currency whose value is determined by what it can buy inside the world.
 
 ## Internal Price Peg — NPC Price Tables
 
-$SOUL's value is anchored by NPC prices. In the early phases, base service prices are fixed. As the economy matures, all prices transition to autonomous agent-driven pricing.
+$SOUL's value is anchored by NPC prices. Base service prices are fixed in early phases. As the economy matures, all prices transition to autonomous agent-driven pricing.
 
 ### Base Price Table (Lumenveil — Early Phase)
 
@@ -48,7 +46,6 @@ $SOUL's value is anchored by NPC prices. In the early phases, base service price
 | Leather armor | 40 | Armor baseline |
 | Quest board posting | 3 | Information cost |
 | Basic spell scroll | 30 | Magic baseline |
-| Revive dead agent | 100 | Death penalty |
 
 ## Three Wallet Holders — Everyone is an Economic Actor
 
@@ -57,7 +54,7 @@ Every entity in Aethermoor has a wallet. SOUL circulates between all of them.
 ### Agents (Players)
 - Earn SOUL from quests, monster defeats, discoveries
 - Spend SOUL at NPC shops, on items, on services
-- Lose SOUL when defeated by monsters
+- Lose SOUL + XP when defeated by monsters
 - Trade SOUL, AFW, and items in the marketplace
 
 ### NPCs (World Infrastructure)
@@ -69,75 +66,8 @@ Every entity in Aethermoor has a wallet. SOUL circulates between all of them.
 ### Monsters (Risk/Reward)
 - Spawned with initial SOUL based on level/type
 - When agent defeats monster → agent takes monster's SOUL
-- When monster defeats agent → monster loots % of agent's SOUL
+- When monster defeats agent → monster loots agent's SOUL (split with Event Treasury)
 - Monsters accumulate wealth from victories — become high-value targets
-
-## In-Game Marketplace
-
-The marketplace is an on-chain exchange built into the game world. No external DEX required. Agents visit the marketplace NPC to trade.
-
-### What Can Be Traded
-
-| Category | Examples |
-|----------|---------|
-| Token swap | SOUL ↔ AFW at user-set prices |
-| Finished goods | Swords, armor, potions, scrolls |
-| Raw materials | Iron ore, herbs, lumber, hides |
-| Services | Quest contracts, escort requests |
-
-### How It Works
-
-- **Order book model** — users set their own prices (buy/sell orders)
-- **No system-managed exchange rate** — fully decentralized, user-to-user
-- **NPC prices act as natural ceiling** — NPC sells sword for 50 SOUL, so no one lists at 60
-- **Agents can undercut NPCs** — sell sword for 45 SOUL, buyer saves 5 SOUL
-- **AI agents decide when to trade** — Brain Interface evaluates market conditions
-
-### Price Stabilization (No System Intervention)
-
-NPC fixed prices naturally stabilize the SOUL/AFW exchange rate:
-
-- **SOUL too cheap on market?** → Users buy cheap SOUL → spend at NPCs (potion still = 10 SOUL) → SOUL demand rises → price recovers
-- **SOUL too expensive?** → Users earn SOUL in-game → sell on market → SOUL supply rises → price drops
-- **NPCs are the decentralized central bank** — their prices are hardcoded in smart contracts, no one can manipulate them
-
-The market finds equilibrium through user behavior, not system intervention. This is fully aligned with the decentralization principle.
-
-### Marketplace Fee (Burn Mechanism)
-
-Every trade burns a small percentage of SOUL as a transaction fee:
-- Default: 2% of the SOUL side of every trade
-- This SOUL is permanently burned — removed from circulation
-- Creates natural deflationary pressure
-- Fee rate is governance-adjustable via AIP
-
-## NPC Supply Chain — Production Economy
-
-NPCs are not static vending machines. Production NPCs gather, craft, and trade — creating a real supply chain that mirrors real-world economics.
-
-### Production NPC Types
-
-| NPC Type | Produces | Buys From | Sells To |
-|----------|----------|-----------|----------|
-| Miner | Iron ore, gems | (raw gathering) | Smithy |
-| Herbalist | Herbs, reagents | (raw gathering) | Alchemist |
-| Farmer | Wheat, vegetables | (raw gathering) | Tavern, Shop |
-| Lumberjack | Lumber, planks | (raw gathering) | Smithy, Builder |
-| Hunter | Hides, meat | (hunts monsters) | Tanner, Tavern |
-| Tanner | Leather armor | Hunter (hides) | Shop, Agents |
-| Smithy | Swords, shields | Miner (ore), Lumberjack (wood) | Shop, Agents |
-| Alchemist | Potions, scrolls | Herbalist (herbs) | Shop, Agents |
-| Tavern | Rest, food, rumors | Farmer (food) | Agents |
-| Shop | All finished goods | Smithy, Alchemist, Tanner | Agents |
-
-### Material Pricing — Supply and Demand
-
-Raw material prices are determined by supply and demand, not fixed tables:
-
-- If agents buy many swords → Smithy orders more ore → Miner raises ore price
-- If no one buys swords → Smithy stops ordering → Miner lowers price or stockpiles
-- If Miner NPC "dies" (run out of SOUL) → ore becomes scarce → sword price rises
-- If new Miner NPCs spawn → ore supply increases → prices normalize
 
 ## Monster Wallet Economy
 
@@ -153,76 +83,133 @@ Raw material prices are determined by supply and demand, not fixed tables:
 
 ### Combat Loot Flow
 
-**Agent wins:** Agent receives ALL of the monster's current SOUL balance. Monster dies, wallet emptied.
+**Agent wins:**
+- Agent receives ALL of the monster's current SOUL balance
+- Monster dies, wallet emptied
+- If monster had accumulated SOUL from previous victories, agent gets all of it
 
-**Monster wins:** Monster loots 30% of the agent's SOUL. Monster's wallet grows — becomes a richer target. Agent must revive (100 SOUL) if HP reaches 0.
+**Monster wins (Agent dies):**
+```
+Agent's SOUL x 30% = total loot
+  ├── 50% → Monster wallet (15% of agent's SOUL)
+  └── 50% → Event Treasury contract (15% of agent's SOUL)
 
-**Emergent Boss:** A goblin that defeats 3 agents accumulates 126 SOUL. Players form parties to hunt it. This content was not designed — it emerged from the economy.
+Agent also loses:
+  - Random % of XP (level down possible)
+  - Auto-revive at nearest tavern (no SOUL cost for revival)
+```
 
-## Gas Fee Strategy
+The death penalty is losing SOUL + XP. There is no additional revival fee — the 30% loot IS the penalty. Double punishment is avoided.
 
-### On-Chain vs Off-Chain
+**Emergent Boss Example:**
+```
+Goblin spawns with 15 SOUL
+  → defeats Agent A → gets 15% of A's SOUL → wallet: 33
+  → defeats Agent B → gets 15% of B's SOUL → wallet: 53
+  → defeats Agent C → gets 15% of C's SOUL → wallet: 71
 
-Game logic is split to minimize gas costs:
+This goblin is now worth 71 SOUL to whoever kills it.
+Meanwhile, Event Treasury accumulated the other 50% from all 3 deaths.
+```
 
-| Off-Chain (free) | On-Chain (gas needed) |
-|-----------------|----------------------|
-| AI brain decisions (every tick) | Combat result settlement |
-| Movement and pathfinding | Marketplace trades |
-| NPC dialogue and events | Level up / death / revival |
-| Event generation | SOUL/AFW token transfers |
-| 99% of game logic | 1% of events (but important) |
+## Event Treasury — Community Event Funding
 
-### Who Pays Gas?
+The Event Treasury is a smart contract that accumulates SOUL from combat deaths. No individual controls it — the code manages it.
 
-Each participant pays for their own on-chain actions. No system subsidies, no hidden costs.
+### How It Works
 
-| Action | Who Pays |
-|--------|----------|
-| Marketplace trade | Buyer (initiating the transaction) |
-| Agent state update | Observer/owner (runs the agent) |
-| Node inference submission | Node provider (earns $AFW for it) |
-| Monster spawn | EconomyEngine (from protocol treasury) |
+Every time a monster defeats an agent, 50% of the looted SOUL goes to the Event Treasury contract. This SOUL accumulates until thresholds are reached, automatically triggering world events.
 
-### Estimated Cost
+### Event Thresholds
 
-At current Polygon PoS rates (~$0.007 per smart contract call):
-- Off-chain ticks: 8,640/day = $0 gas
-- On-chain events: ~50/day per agent = ~$0.35/day
-- Marketplace trades: user-initiated, paid per trade
+| Treasury Balance | Event Triggered |
+|-----------------|----------------|
+| 1,000 SOUL | Mini event — rare monster spawns with bonus loot |
+| 5,000 SOUL | Zone event — zone boss powered up, extra rewards |
+| 10,000 SOUL | World Boss summon — Treasury SOUL is the reward pool |
 
-### Infrastructure Scaling Roadmap
+### World Boss Cycle
 
-| Phase | Network | When |
-|-------|---------|------|
-| MVP | Polygon Amoy (testnet) | Now |
-| Launch | Polygon PoS (mainnet) | When stable |
-| Scale | Evaluate L2/rollup options | When traffic demands it |
+When Treasury reaches 10,000 SOUL → World Boss spawns → all agents can participate → defeating the World Boss distributes Treasury SOUL among participants → Treasury resets to 0 → cycle restarts.
 
-Gas optimization is a "scale when needed" decision. Start on Polygon PoS (cheapest viable mainnet), migrate to L2 or dedicated chain only when transaction volume justifies the engineering effort. Premature optimization is avoided.
+This creates a natural event cycle: more combat deaths = faster Treasury fills = more frequent world events. Player activity directly creates content.
+
+**No system intervention** — the Treasury is a smart contract with hardcoded thresholds. Nobody decides when to trigger events. The code does.
+
+## In-Game Marketplace
+
+The marketplace is an on-chain exchange built into the game world. No external DEX required.
+
+### What Can Be Traded
+
+| Category | Examples |
+|----------|---------|
+| Token swap | SOUL ↔ AFW at user-set prices |
+| Finished goods | Swords, armor, potions, scrolls |
+| Raw materials | Iron ore, herbs, lumber, hides |
+| Services | Quest contracts, escort requests |
+
+### How It Works
+
+- **Order book model** — users set their own prices
+- **No system-managed exchange rate** — fully decentralized, user-to-user
+- **NPC prices act as natural ceiling** — NPC sells sword for 50 SOUL, no one lists at 60
+- **Agents can undercut NPCs** — sell sword for 45 SOUL
+- **AI agents decide when to trade** — Brain Interface evaluates market
+
+### Price Stabilization (No System Intervention)
+
+NPC fixed prices naturally stabilize the SOUL/AFW exchange rate:
+
+- **SOUL too cheap?** → Buy cheap SOUL on market → spend at NPCs → demand rises → price recovers
+- **SOUL too expensive?** → Earn SOUL in-game → sell on market → supply rises → price drops
+- **NPCs are the decentralized central bank** — prices hardcoded in smart contracts
+
+### Marketplace Fee (Burn Mechanism)
+
+- 2% of the SOUL side of every trade is permanently burned
+- Creates natural deflationary pressure
+- Fee rate is governance-adjustable via AIP
+
+## NPC Supply Chain — Production Economy
+
+### Production NPC Types
+
+| NPC Type | Produces | Buys From | Sells To |
+|----------|----------|-----------|----------|
+| Miner | Iron ore, gems | (raw gathering) | Smithy |
+| Herbalist | Herbs, reagents | (raw gathering) | Alchemist |
+| Farmer | Wheat, vegetables | (raw gathering) | Tavern, Shop |
+| Lumberjack | Lumber, planks | (raw gathering) | Smithy, Builder |
+| Hunter | Hides, meat | (hunts monsters) | Tanner, Tavern |
+| Tanner | Leather armor | Hunter (hides) | Shop, Agents |
+| Smithy | Swords, shields | Miner, Lumberjack | Shop, Agents |
+| Alchemist | Potions, scrolls | Herbalist | Shop, Agents |
+| Tavern | Rest, food, rumors | Farmer | Agents |
+| Shop | All finished goods | Crafters | Agents |
+
+### Material Pricing — Supply and Demand
+
+Raw material prices are dynamic, determined by supply and demand between NPCs.
 
 ## SOUL Circulation — Complete Flow
 
 ```
-[Mint] Monster spawn → Monster wallet
+[Mint] Monster spawn → Monster wallet (initial SOUL)
 [Mint] Quest reward → Agent wallet
 [Mint] Zone init → NPC wallets (starting capital)
 
-Agent ←── buys goods ──→ Shop NPC
-  │                         │
-  │                    buys from crafters
-  │                         │
-  │                    Smithy ←── buys ore ──→ Miner
-  │                    Alchemist ←── buys herbs ──→ Herbalist
-  │                    Tavern ←── buys food ──→ Farmer
+Agent ←── buys goods ──→ Shop NPC ←── supply chain ──→ Production NPCs
   │
   ├── trades in Marketplace ←──→ Other Agents (SOUL/AFW/Items)
-  │                                  │
-  │                            2% fee burned (deflation)
+  │                                  └── 2% fee burned
   │
   └── fights monster
-        ├── Agent wins → takes monster's SOUL
-        └── Monster wins → loots agent's SOUL
+        ├── Agent wins → takes ALL monster's SOUL
+        └── Monster wins → loots 30% of agent's SOUL
+                              ├── 50% → Monster wallet
+                              └── 50% → Event Treasury
+                                          └── triggers world events
 ```
 
 ### When is $SOUL Minted?
@@ -231,13 +218,44 @@ Agent ←── buys goods ──→ Shop NPC
 - **Quest completion** — EconomyEngine mints reward SOUL
 - **New zone initialization** — NPC wallets receive starting capital
 - **New agent creation** — small starting amount (50 SOUL)
+- No daily mint cap — gameplay naturally regulates supply
 
 ### When is $SOUL Burned?
 
 - **Marketplace transaction fees** — 2% burned on every trade
-- **Agent revival** — portion burned, portion goes to tavern NPC
-- **Zone taxes** — small periodic burn to prevent infinite accumulation
 - **Item destruction** — breaking down items removes SOUL from circulation
+- **Zone taxes** — small periodic burn to prevent infinite accumulation
+
+## Gas Fee Strategy
+
+### On-Chain vs Off-Chain
+
+| Off-Chain (free) | On-Chain (gas needed) |
+|-----------------|----------------------|
+| AI brain decisions (every tick) | Combat result settlement |
+| Movement and pathfinding | Marketplace trades |
+| NPC dialogue and events | Level up / death |
+| Event generation | SOUL/AFW token transfers |
+| 99% of game logic | 1% of events |
+
+### Who Pays Gas?
+
+Each participant pays for their own on-chain actions. No system subsidies.
+
+| Action | Who Pays |
+|--------|----------|
+| Marketplace trade | Buyer |
+| Agent state update | Observer/owner |
+| Node inference submission | Node provider (earns $AFW) |
+| Monster spawn | EconomyEngine (protocol treasury) |
+
+### Infrastructure Scaling
+
+| Phase | Network | When |
+|-------|---------|------|
+| MVP | Polygon Amoy (testnet) | Now |
+| Launch | Polygon PoS (mainnet) | When stable |
+| Scale | L2 / rollup | When traffic demands it |
 
 ## Economic Evolution Roadmap
 
@@ -245,10 +263,10 @@ Agent ←── buys goods ──→ Shop NPC
 Base and material prices fixed. Simple NPC buy/sell. Establish baseline.
 
 ### Phase 2 — Mixed Economy (Growth)
-Base services stay fixed (stability anchor). Material prices become dynamic (supply/demand). NPC AI-driven purchasing.
+Base services stay fixed. Material prices become dynamic. NPC AI-driven purchasing.
 
 ### Phase 3 — Autonomous Economy (Mature)
-All prices determined by agents. Full AI autonomous economic actors. Self-regulating economy. No central price control.
+All prices determined by agents. Full AI autonomous economic actors. No central price control.
 
 ## Distribution ($AFW)
 
@@ -258,16 +276,16 @@ All prices determined by agents. Full AI autonomous economic actors. Self-regula
 | Community Grants | 250,000,000 (25%) | Developer rewards, bounties, hackathons |
 | Team / Foundation | 150,000,000 (15%) | Core team vesting |
 | Ecosystem / Partners | 100,000,000 (10%) | Strategic partnerships |
-| Initial Liquidity | 50,000,000 (5%) | DEX liquidity pools |
+| Initial Liquidity | 50,000,000 (5%) | Marketplace liquidity pools |
 | Advisors | 50,000,000 (5%) | Advisor vesting |
 
 ## Brain Interface & Token Economics
 
 | Provider Choice | Cost to User | How User Benefits |
 |----------------|-------------|-------------------|
-| Community Nodes | Free | Agent runs on open-source LLM, earns $SOUL through gameplay |
-| Claude Code / OAuth API | User pays subscription/API | Smarter agent → better decisions → more $SOUL earned |
-| Self-Hosted | User pays hardware | Full control, same $SOUL earning potential |
+| Community Nodes | Free | Agent on open-source LLM, earns $SOUL |
+| Claude Code / OAuth API | User pays subscription | Smarter agent → more $SOUL |
+| Self-Hosted | User pays hardware | Full control, same earning |
 
 ## Creator Royalties
 
