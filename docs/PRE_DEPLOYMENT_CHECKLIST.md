@@ -1,6 +1,6 @@
 # Pre-Deployment Checklist — Review Before Mainnet
 
-This document lists all open questions and verification items that must be resolved before deploying contracts to Polygon PoS mainnet. Contracts are immutable once deployed — every decision here is permanent.
+This document lists all open questions and verification items that must be resolved before deploying contracts to Polygon PoS mainnet.
 
 ---
 
@@ -18,10 +18,7 @@ This document lists all open questions and verification items that must be resol
 | NPCs | Can new NPC types be added post-deployment? | ⬜ Design |
 | Marketplace | Can new trade pair types be added? | ⬜ Design |
 
-**Registration model:** Open registration — anyone can register new content (zones, monsters, items, NPCs). BUT the contract enforces Balance table specs. Out-of-spec registrations are auto-rejected and the wallet is frozen.
-
-### Key question:
-If any of these are enums or fixed arrays, they need to be refactored to mappings with `register()` functions before mainnet.
+**Registration model:** Open registration — anyone can register. Contract enforces Balance table spec ranges. Out-of-spec → `revert` (registration simply fails, no wallet freeze). Stats are random within range on spawn.
 
 ---
 
@@ -29,15 +26,15 @@ If any of these are enums or fixed arrays, they need to be refactored to mapping
 
 | Item | Decision | Status |
 |------|----------|--------|
-| $AFW supply | 1B fixed — confirmed | ✅ Done |
+| $AFW supply | 1B fixed | ✅ Done |
 | $AFW distribution | 40/25/15/10/5/5 — defer exact split to mainnet | ⬜ Later |
-| $SOUL daily mint cap | **No limit** — natural gameplay emission, burns balance it | ✅ Done |
-| $SOUL burn rate | Marketplace fee **2%** — confirmed | ✅ Done |
-| NPC price table | Potion=10, rest=5, sword=50 — confirmed | ✅ Done |
+| $SOUL daily mint cap | **No limit** — gameplay drives supply, burns balance it | ✅ Done |
+| $SOUL burn rate | Marketplace fee **2%** | ✅ Done |
+| NPC price table | Potion=10, rest=5, sword=50 | ✅ Done |
 | Monster spawn SOUL | Minion 5-20, Regular 20-50, Elite 80-150, Boss 200-500 | ✅ Done |
 | Agent start SOUL | 50 SOUL | ✅ Done |
-| Death penalty | **No SOUL burn for revival.** Monster loots 30% → 15% to monster wallet, 15% to Event Treasury. Agent loses XP (random %). | ✅ Done |
-| Event Treasury | Auto-accumulates from death loots. Funds world events (bosses, seasons). On-chain contract, no human control. | ✅ Done |
+| Death penalty | Monster loots 30% (15% monster wallet + 15% Event Treasury) + XP loss. No revival fee. | ✅ Done |
+| Event Treasury | Auto-accumulates from death loots. Funds world events. | ✅ Done |
 | Creator royalty | 5% from existing rewards — no extra minting | ✅ Done |
 
 ---
@@ -46,49 +43,70 @@ If any of these are enums or fixed arrays, they need to be refactored to mapping
 
 | Item | Decision | Status |
 |------|----------|--------|
-| Admin keys | **Multisig** — multiple signers required | ✅ Done |
-| Upgrade path | **Upgradeable (proxy pattern)** — bug fixes possible | ✅ Done |
-| Emergency pause | **NO emergency pause.** Instead: contract auto-freezes wallets that violate registration specs | ✅ Done |
-| Registration | **Open registration** — anyone can register content | ✅ Done |
-| Spec enforcement | Contract checks Balance table ranges. Out-of-spec → reject + freeze wallet | ✅ Done |
-| Wallet unfreeze | Governance multisig vote only | ✅ Done |
+| Admin keys | **Multisig** | ✅ Done |
+| Upgrade path | **Upgradeable (proxy pattern)** | ✅ Done |
+| Emergency pause | **NO.** No emergency pause exists. | ✅ Done |
+| Registration | **Open** — anyone can register within spec | ✅ Done |
+| Spec enforcement | Out-of-spec registration → `revert` (tx fails, that's all) | ✅ Done |
+| Exploit protection | Guardian Agent monitors on-chain data → proposes wallet freeze to multisig | ✅ Done |
+| Wallet freeze | Only via multisig vote on Guardian Agent proposal | ✅ Done |
 | Parameter changes | Which params can governance change post-deploy? | ⬜ Define |
 
-### Auto-Protection System (replaces emergency pause)
+### Security Layers
 
 ```
-Registration attempt:
-  → Contract checks stat ranges against Balance table
-  → Within spec? → Accept, wallet active
-  → Out of spec? → Reject transaction + freeze wallet
+Layer 1: Contract self-protection
+  → onlyAuthorizedContract on SOUL minting
+  → ReentrancyGuard on all external calls
+  → Nonce/processedId for duplicate reward prevention
+  → Out-of-spec registration → revert (no freeze, just fails)
+  → Stat ranges enforced from Balance table
 
-Spawn (monster/NPC/item):
-  → Stats are RANDOM within the registered type's range
-  → Range enforced by contract, not by caller
-  → Nobody can create ATK 9999 anything
+Layer 2: Guardian Agent (AI-powered)
+  → Monitors ALL on-chain transaction data
+  → Detects exploit patterns (unauthorized minting, reentrancy, duplicates)
+  → Proposes wallet freeze to multisig WITH evidence
+  → Also provides economy analytics (public dashboard)
 
-Wallet freeze triggers:
-  → Out-of-spec registration attempt
-  → Abnormal SOUL transfer patterns
-  → Contract call rule violations
-
-Wallet unfreeze:
-  → Governance multisig vote only
+Layer 3: Governance (multisig)
+  → Reviews Guardian Agent proposals
+  → Approves/rejects wallet freezes
+  → Community parameter changes via AIP
 ```
-
-This is fully decentralized. No human triggers the pause — the code protects itself.
 
 ---
 
 ## 4. Marketplace
 
-| Item | Question | Status |
+| Item | Decision | Status |
 |------|----------|--------|
-| Order book | On-chain order book or off-chain matching? | ⬜ Decide |
-| Fee mechanism | 2% burn on SOUL side of every trade | ✅ Done |
-| Item trading | How are items represented on-chain? ERC-1155? | ⬜ Design |
-| AFW/SOUL pair | User-set prices in marketplace (order book) | ✅ Done |
+| AFW/SOUL swap | **P2P in marketplace** — user-to-user, user-set prices | ✅ Done |
+| Order registration | **Off-chain data** — listing items/orders costs no gas | ✅ Done |
+| Trade settlement | **On-chain at execution** — gas only when trade happens | ✅ Done |
+| Fee mechanism | 2% SOUL burned on every trade settlement | ✅ Done |
+| Item standard | How are items represented on-chain? ERC-1155? | ⬜ Design |
 | Front-running | MEV protection needed? | ⬜ Evaluate |
+
+### Marketplace Architecture
+
+```
+Seller: "Sell iron sword for 45 SOUL"
+  → Registered as off-chain data (no gas)
+  → Visible to all agents browsing marketplace
+
+Buyer: "Buy this sword"
+  → On-chain settlement transaction
+  → Buyer pays gas (~$0.007)
+  → SOUL transfers: 44.1 to seller, 0.9 burned (2%)
+  → Item transfers to buyer
+  → Transaction recorded on-chain permanently
+
+AFW/SOUL swap: same flow
+  → "Sell 100 SOUL for 5 AFW" → off-chain listing
+  → Someone accepts → on-chain settlement
+```
+
+**NPC prices = natural price ceiling.** NPC sells sword for 50 SOUL, so marketplace price naturally stays below 50.
 
 ---
 
@@ -96,7 +114,8 @@ This is fully decentralized. No human triggers the pause — the code protects i
 
 | Item | Decision | Status |
 |------|----------|--------|
-| Off-chain/on-chain split | 99% off-chain, 1% on-chain (combat/trade/level) | ✅ Done |
+| Game tick | Off-chain AI decisions, periodic on-chain state sync | ✅ Done |
+| Marketplace | Off-chain listings, on-chain settlement | ✅ Done |
 | Who pays gas | Each user pays for own actions | ✅ Done |
 | Batch settlement | How many ticks per on-chain tx? | ⬜ Decide |
 | Network | Amoy → Polygon PoS → L2 when traffic grows | ✅ Done |
@@ -109,13 +128,13 @@ This is fully decentralized. No human triggers the pause — the code protects i
 
 | Item | Question | Status |
 |------|----------|--------|
+| Guardian Agent | AI monitoring of all on-chain transactions | ✅ Designed |
 | Audit | Professional audit before mainnet? | ⬜ Plan |
 | Test coverage | All contracts have comprehensive tests? | ⬜ Verify |
 | Reentrancy | All external calls protected? | ⬜ Verify |
 | Integer overflow | Using Solidity 0.8+ built-in checks | ✅ Done |
 | Access control | All admin functions properly gated? | ⬜ Verify |
 | Oracle manipulation | OracleGateway tamper-proof? | ⬜ Verify |
-| Auto-freeze | Wallet freeze on spec violation implemented? | ⬜ Implement |
 
 ---
 
@@ -136,8 +155,8 @@ This is fully decentralized. No human triggers the pause — the code protects i
 | Contract | Purpose | Status |
 |----------|---------|--------|
 | CombatResolver | On-chain combat settlement | ⬜ Design |
-| ItemRegistry | Dynamic item registration (spec-enforced) | ⬜ Design |
-| Marketplace | On-chain order book for trading | ⬜ Design |
+| ItemRegistry | Dynamic item registration (spec-enforced, ERC-1155?) | ⬜ Design |
+| Marketplace | Off-chain listing + on-chain settlement | ⬜ Design |
 | MonsterRegistry | Monster types + wallet + spec enforcement | ⬜ Design |
 | NPCRegistry | NPC types + wallet + supply chain | ⬜ Design |
 | EventTreasury | Death loot accumulation + world event funding | ⬜ Design |
@@ -147,8 +166,8 @@ This is fully decentralized. No human triggers the pause — the code protects i
 ## Progress Summary
 
 ```
-✅ Decided:  17 items
-⬜ Remaining: 20 items (verify, design, test, decide)
+✅ Decided:  22 items
+⬜ Remaining: 15 items (verify, design, test, decide)
 ```
 
 ---
