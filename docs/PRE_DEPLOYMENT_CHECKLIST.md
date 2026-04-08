@@ -18,6 +18,8 @@ This document lists all open questions and verification items that must be resol
 | NPCs | Can new NPC types be added post-deployment? | ⬜ Design |
 | Marketplace | Can new trade pair types be added? | ⬜ Design |
 
+**Registration model:** Open registration — anyone can register new content (zones, monsters, items, NPCs). BUT the contract enforces Balance table specs. Out-of-spec registrations are auto-rejected and the wallet is frozen.
+
 ### Key question:
 If any of these are enums or fixed arrays, they need to be refactored to mappings with `register()` functions before mainnet.
 
@@ -25,31 +27,56 @@ If any of these are enums or fixed arrays, they need to be refactored to mapping
 
 ## 2. Token Economics
 
-| Item | Question | Status |
+| Item | Decision | Status |
 |------|----------|--------|
-| $AFW supply | Is 1B fixed supply correct? Once deployed, cannot change | ⬜ Confirm |
-| $AFW distribution | 40/25/15/10/5/5 split finalized? | ⬜ Confirm |
-| $SOUL mint rate | Daily mint cap — what's the number? | ⬜ Decide |
-| $SOUL burn rate | Marketplace fee 2% — confirmed? | ⬜ Confirm |
-| NPC price table | Base prices (potion=10, rest=5, revive=100) finalized? | ⬜ Confirm |
-| Monster spawn SOUL | Initial SOUL per monster type — finalized? | ⬜ Confirm |
-| Agent start SOUL | Starting amount (50 SOUL?) — confirmed? | ⬜ Confirm |
-| Revival cost | 100 SOUL — how much burned vs goes to NPC? | ⬜ Decide |
-| Creator royalty | 5% from existing rewards — mechanism verified? | ⬜ Verify |
+| $AFW supply | 1B fixed — confirmed | ✅ Done |
+| $AFW distribution | 40/25/15/10/5/5 — defer exact split to mainnet | ⬜ Later |
+| $SOUL daily mint cap | **No limit** — natural gameplay emission, burns balance it | ✅ Done |
+| $SOUL burn rate | Marketplace fee **2%** — confirmed | ✅ Done |
+| NPC price table | Potion=10, rest=5, sword=50 — confirmed | ✅ Done |
+| Monster spawn SOUL | Minion 5-20, Regular 20-50, Elite 80-150, Boss 200-500 | ✅ Done |
+| Agent start SOUL | 50 SOUL | ✅ Done |
+| Death penalty | **No SOUL burn for revival.** Monster loots 30% → 15% to monster wallet, 15% to Event Treasury. Agent loses XP (random %). | ✅ Done |
+| Event Treasury | Auto-accumulates from death loots. Funds world events (bosses, seasons). On-chain contract, no human control. | ✅ Done |
+| Creator royalty | 5% from existing rewards — no extra minting | ✅ Done |
 
 ---
 
 ## 3. Access Control & Governance
 
-| Item | Question | Status |
+| Item | Decision | Status |
 |------|----------|--------|
-| Admin keys | Who holds deployer/admin role? Multisig? | ⬜ Decide |
-| Upgrade path | Are contracts upgradeable (proxy) or immutable? | ⬜ Decide |
+| Admin keys | **Multisig** — multiple signers required | ✅ Done |
+| Upgrade path | **Upgradeable (proxy pattern)** — bug fixes possible | ✅ Done |
+| Emergency pause | **NO emergency pause.** Instead: contract auto-freezes wallets that violate registration specs | ✅ Done |
+| Registration | **Open registration** — anyone can register content | ✅ Done |
+| Spec enforcement | Contract checks Balance table ranges. Out-of-spec → reject + freeze wallet | ✅ Done |
+| Wallet unfreeze | Governance multisig vote only | ✅ Done |
 | Parameter changes | Which params can governance change post-deploy? | ⬜ Define |
-| Emergency pause | Can contracts be paused in emergency? By whom? | ⬜ Decide |
-| Zone registration | Who can register new zones? AIP vote? | ⬜ Decide |
-| Monster registration | Who can register new monster types? | ⬜ Decide |
-| NPC registration | Who can register new NPC types? | ⬜ Decide |
+
+### Auto-Protection System (replaces emergency pause)
+
+```
+Registration attempt:
+  → Contract checks stat ranges against Balance table
+  → Within spec? → Accept, wallet active
+  → Out of spec? → Reject transaction + freeze wallet
+
+Spawn (monster/NPC/item):
+  → Stats are RANDOM within the registered type's range
+  → Range enforced by contract, not by caller
+  → Nobody can create ATK 9999 anything
+
+Wallet freeze triggers:
+  → Out-of-spec registration attempt
+  → Abnormal SOUL transfer patterns
+  → Contract call rule violations
+
+Wallet unfreeze:
+  → Governance multisig vote only
+```
+
+This is fully decentralized. No human triggers the pause — the code protects itself.
 
 ---
 
@@ -58,20 +85,21 @@ If any of these are enums or fixed arrays, they need to be refactored to mapping
 | Item | Question | Status |
 |------|----------|--------|
 | Order book | On-chain order book or off-chain matching? | ⬜ Decide |
-| Fee mechanism | 2% burn on which side (SOUL only? both?) | ⬜ Decide |
+| Fee mechanism | 2% burn on SOUL side of every trade | ✅ Done |
 | Item trading | How are items represented on-chain? ERC-1155? | ⬜ Design |
-| AFW/SOUL pair | AMM pool or order book? | ⬜ Decide |
+| AFW/SOUL pair | User-set prices in marketplace (order book) | ✅ Done |
 | Front-running | MEV protection needed? | ⬜ Evaluate |
 
 ---
 
 ## 5. Gas & Infrastructure
 
-| Item | Question | Status |
+| Item | Decision | Status |
 |------|----------|--------|
-| Off-chain/on-chain split | Which actions go on-chain? Finalized? | ⬜ Confirm |
+| Off-chain/on-chain split | 99% off-chain, 1% on-chain (combat/trade/level) | ✅ Done |
+| Who pays gas | Each user pays for own actions | ✅ Done |
 | Batch settlement | How many ticks per on-chain tx? | ⬜ Decide |
-| State channel | Needed for high-frequency agent updates? | ⬜ Evaluate |
+| Network | Amoy → Polygon PoS → L2 when traffic grows | ✅ Done |
 | RPC provider | Public RPC or dedicated node? | ⬜ Decide |
 | Gas estimation | Safety margins tested on Amoy? | ⬜ Test |
 
@@ -84,9 +112,10 @@ If any of these are enums or fixed arrays, they need to be refactored to mapping
 | Audit | Professional audit before mainnet? | ⬜ Plan |
 | Test coverage | All contracts have comprehensive tests? | ⬜ Verify |
 | Reentrancy | All external calls protected? | ⬜ Verify |
-| Integer overflow | Using SafeMath / Solidity 0.8+ checks? | ⬜ Verify |
+| Integer overflow | Using Solidity 0.8+ built-in checks | ✅ Done |
 | Access control | All admin functions properly gated? | ⬜ Verify |
 | Oracle manipulation | OracleGateway tamper-proof? | ⬜ Verify |
+| Auto-freeze | Wallet freeze on spec violation implemented? | ⬜ Implement |
 
 ---
 
@@ -94,10 +123,10 @@ If any of these are enums or fixed arrays, they need to be refactored to mapping
 
 | Item | Question | Status |
 |------|----------|--------|
-| Balance table | Level/stat ranges finalized for all zones? | ⬜ Confirm |
+| Balance table | Level/stat ranges finalized for all zones | ✅ Done |
 | Damage formula | Tested and balanced? | ⬜ Test |
 | XP curve | Level progression rate correct? | ⬜ Confirm |
-| Death penalty | 30% SOUL loot to monster — balanced? | ⬜ Playtest |
+| Death penalty | 30% loot (15% monster + 15% treasury) + XP loss | ✅ Done |
 | Economy simulation | Ran multi-agent simulation to test inflation? | ⬜ Run |
 
 ---
@@ -107,23 +136,20 @@ If any of these are enums or fixed arrays, they need to be refactored to mapping
 | Contract | Purpose | Status |
 |----------|---------|--------|
 | CombatResolver | On-chain combat settlement | ⬜ Design |
-| ItemRegistry | Dynamic item registration | ⬜ Design |
+| ItemRegistry | Dynamic item registration (spec-enforced) | ⬜ Design |
 | Marketplace | On-chain order book for trading | ⬜ Design |
-| MonsterRegistry | Monster types + wallet management | ⬜ Design |
+| MonsterRegistry | Monster types + wallet + spec enforcement | ⬜ Design |
 | NPCRegistry | NPC types + wallet + supply chain | ⬜ Design |
+| EventTreasury | Death loot accumulation + world event funding | ⬜ Design |
 
 ---
 
-## Decision Process
+## Progress Summary
 
-Each item above should be resolved through one of:
-1. **Confirm** — we already decided, just need to verify implementation
-2. **Decide** — needs a decision from Alex (Product Owner)
-3. **Design** — needs spec from Meti, then implementation
-4. **Test** — needs testing on Amoy before mainnet
-5. **Evaluate** — needs research before deciding
-
-**Rule: No item can be ⬜ when we deploy to mainnet. Every box must be ✅.**
+```
+✅ Decided:  17 items
+⬜ Remaining: 20 items (verify, design, test, decide)
+```
 
 ---
 
