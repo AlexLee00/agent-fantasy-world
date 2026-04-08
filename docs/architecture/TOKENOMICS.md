@@ -36,9 +36,9 @@ $SOUL is NOT a speculative token. It is a functional game currency whose value i
 
 ## Internal Price Peg — NPC Price Tables
 
-$SOUL's value is anchored by fixed NPC prices. These prices define "what 1 SOUL is worth" inside the game.
+$SOUL's value is anchored by NPC prices. In the early phases, base service prices are fixed. As the economy matures, all prices transition to autonomous agent-driven pricing.
 
-### Base Price Table (Lumenveil)
+### Base Price Table (Lumenveil — Early Phase)
 
 | Item / Service | Price ($SOUL) | Defines |
 |---------------|--------------|---------|
@@ -49,14 +49,6 @@ $SOUL's value is anchored by fixed NPC prices. These prices define "what 1 SOUL 
 | Quest board posting | 3 | Information cost |
 | Basic spell scroll | 30 | Magic baseline |
 | Revive dead agent | 100 | Death penalty |
-
-These prices are constants in the smart contract. They do NOT fluctuate with supply/demand. This is the peg.
-
-### How the Peg Works
-
-A health potion always costs 10 SOUL. Whether there are 100 agents or 100,000 agents in the world, the potion still costs 10 SOUL. This means 10 SOUL always has the purchasing power of "one health potion" — the internal value is stable.
-
-If SOUL becomes too abundant (inflation risk), the governance can introduce new sinks (higher-tier items, NPC services, zone access fees). If SOUL becomes too scarce, the governance can increase quest rewards or add new earning paths.
 
 ## Three Wallet Holders — Everyone is an Economic Actor
 
@@ -71,14 +63,97 @@ Every entity in Aethermoor has a wallet. SOUL circulates between all of them.
 ### NPCs (World Infrastructure)
 - Receive SOUL from agents for goods/services
 - Spend SOUL on other NPCs (supply chain)
-- Fixed price tables anchor SOUL's internal value
-- AI-powered economic behavior (restock, pricing)
+- Production NPCs gather raw materials and sell to crafting NPCs
+- AI-powered economic behavior (restock, pricing, negotiation)
 
 ### Monsters (Risk/Reward)
 - Spawned with initial SOUL based on level/type
 - When agent defeats monster → agent takes monster's SOUL
 - When monster defeats agent → monster loots % of agent's SOUL
 - Monsters accumulate wealth from victories — become high-value targets
+
+## NPC Supply Chain — Production Economy
+
+NPCs are not static vending machines. Production NPCs gather, craft, and trade — creating a real supply chain that mirrors real-world economics.
+
+### Production NPC Types
+
+| NPC Type | Produces | Buys From | Sells To |
+|----------|----------|-----------|----------|
+| Miner | Iron ore, gems | (raw gathering) | Smithy |
+| Herbalist | Herbs, reagents | (raw gathering) | Alchemist |
+| Farmer | Wheat, vegetables | (raw gathering) | Tavern, Shop |
+| Lumberjack | Lumber, planks | (raw gathering) | Smithy, Builder |
+| Hunter | Hides, meat | (hunts monsters) | Tanner, Tavern |
+| Tanner | Leather armor | Hunter (hides) | Shop, Agents |
+| Smithy | Swords, shields | Miner (ore), Lumberjack (wood) | Shop, Agents |
+| Alchemist | Potions, scrolls | Herbalist (herbs) | Shop, Agents |
+| Tavern | Rest, food, rumors | Farmer (food) | Agents |
+| Shop | All finished goods | Smithy, Alchemist, Tanner | Agents |
+
+### Supply Chain Flow
+
+```
+Raw Materials (gathered by production NPCs)
+    │
+    ├── Miner → iron ore ──────→ Smithy → sword ──→ Shop → Agent
+    ├── Lumberjack → lumber ───→ Smithy → shield ─→ Shop → Agent
+    ├── Herbalist → herbs ─────→ Alchemist → potion → Shop → Agent
+    ├── Farmer → food ─────────→ Tavern → rest ────→ Agent
+    └── Hunter → hides ────────→ Tanner → armor ──→ Shop → Agent
+```
+
+Every arrow is a SOUL transaction. Every NPC manages its own wallet, inventory, and economic decisions.
+
+### Material Pricing — Supply and Demand
+
+Raw material prices are determined by supply and demand, not fixed tables:
+
+- If agents buy many swords → Smithy orders more ore → Miner raises ore price
+- If no one buys swords → Smithy stops ordering → Miner lowers price or stockpiles
+- If Miner NPC "dies" (run out of SOUL) → ore becomes scarce → sword price rises
+- If new Miner NPCs spawn → ore supply increases → prices normalize
+
+This creates organic economic cycles driven entirely by in-game activity.
+
+## Economic Evolution Roadmap
+
+The economy evolves from controlled to fully autonomous, mirroring how real economies mature.
+
+### Phase 1 — Controlled Economy (MVP / Early)
+
+```
+Base service prices: FIXED (tavern=5, potion=10, revive=100)
+Material prices: FIXED (ore=5, herbs=3, lumber=4)
+NPC behavior: Simple buy/sell at set prices
+Purpose: Establish baseline, ensure playability, test systems
+```
+
+Prices are set by smart contract constants. This prevents economic chaos while the player base is small and the system is being tested.
+
+### Phase 2 — Mixed Economy (Growth)
+
+```
+Base service prices: FIXED (still anchored for stability)
+Material prices: DYNAMIC (supply/demand between NPCs)
+NPC behavior: AI-driven purchasing, inventory management
+Purpose: Introduce market dynamics, test autonomous pricing
+```
+
+Production NPCs start making autonomous economic decisions. The Smithy decides how much ore to buy based on sword demand. The Herbalist adjusts herb prices based on how many Alchemists are ordering. Base services (rest, revive) stay fixed as stability anchors.
+
+### Phase 3 — Autonomous Economy (Mature)
+
+```
+ALL prices: DETERMINED BY AGENTS (supply/demand)
+NPC behavior: Full AI autonomous economic actors
+Market: Self-regulating through agent competition
+Purpose: True living economy — no central price control
+```
+
+When the game is stable, user base is stable, and participants are stable — all prices are determined by the autonomous economic decisions of agents (both player agents and NPCs). The smart contracts only enforce the rules of transactions, not the prices. The economy runs itself.
+
+**This is the ultimate goal: a world where AI agents create, sustain, and evolve their own economy — just like the real world.**
 
 ## Monster Wallet Economy
 
@@ -93,8 +168,6 @@ Monsters are created with an initial SOUL balance based on their level and type:
 | Elite | 21-25 | 80-150 |
 | Zone Boss | Zone cap | 200-500 |
 | World Boss | 99 | 3000-5000 |
-
-This initial SOUL is minted by EconomyEngine when the monster spawns. It is the primary way new SOUL enters the economy.
 
 ### Combat Loot Flow
 
@@ -121,65 +194,44 @@ Agents form a party to hunt it. Whoever kills it splits 126 SOUL.
 This content was not designed — it emerged from the economy.
 ```
 
-### Why Monster Wallets Matter
-
-- **Real combat risk** — agents can LOSE SOUL, not just HP
-- **Emergent difficulty** — successful monsters become harder targets worth more
-- **Natural party formation** — high-value monsters incentivize cooperation
-- **SOUL circulation** — tokens flow agent → monster → agent, never destroyed
-- **Strategic depth** — agents must evaluate risk vs reward before fighting
-
-## SOUL Circulation — Living Economy
+## SOUL Circulation — Complete Flow
 
 ```
-[Mint] Monster spawn → Monster wallet (initial SOUL)
+[Mint] Monster spawn → Monster wallet
 [Mint] Quest reward → Agent wallet
+[Mint] Zone init → NPC wallets (starting capital)
 
-Agent ←──── buys/sells ────→ NPC
-  │                            │
-  │                            └── buys from other NPCs
+Agent ←── buys goods ──→ Shop NPC
+  │                         │
+  │                    buys from crafters
+  │                         │
+  │                    Smithy ←── buys ore ──→ Miner
+  │                    Alchemist ←── buys herbs ──→ Herbalist
+  │                    Tavern ←── buys food ──→ Farmer
   │
   └── fights monster
-        │
         ├── Agent wins → takes monster's SOUL
         └── Monster wins → loots agent's SOUL
-                              │
-                              └── monster wallet grows
-                                    │
-                                    └── next agent defeats it → big payout
+                              └── monster wallet grows → high-value target
 ```
-
-SOUL moves through the economy. It circulates between agents, NPCs, and monsters. The world has a real internal economy where every entity participates.
 
 ### When is $SOUL Minted?
 
-New SOUL enters the economy only through:
-- **Monster spawning** — monsters receive initial SOUL based on level/type
+- **Monster spawning** — initial SOUL based on level/type
 - **Quest completion** — EconomyEngine mints reward SOUL
 - **New zone initialization** — NPC wallets receive starting capital
 - **New agent creation** — small starting amount (50 SOUL)
 
 ### When is $SOUL Burned?
 
-SOUL leaves the economy through:
 - **Marketplace transaction fees** — small % burned on every trade
 - **Agent revival** — portion burned, portion goes to tavern NPC
 - **Zone taxes** — small periodic burn to prevent infinite accumulation
 - **Item destruction** — breaking down items removes SOUL from circulation
 
-### SOUL Supply Balance
-
-The goal is **net-zero or slight deflation** over time:
-- Mint rate is controlled by daily limits in EconomyEngine
-- Burn mechanisms create consistent demand destruction
-- NPC and monster circulation keeps SOUL moving without needing new minting
-- Governance can tune mint/burn parameters via AIP
-
 ## $AFW ↔ $SOUL Swap
 
 The two tokens are swappable at market-determined rates on a DEX liquidity pool.
-
-### Why Swap?
 
 | Direction | Who | Why |
 |-----------|-----|-----|
@@ -187,12 +239,7 @@ The two tokens are swappable at market-determined rates on a DEX liquidity pool.
 | $SOUL → $AFW | Player with excess SOUL | Want governance power or external value |
 | $AFW → $SOUL | New observer | Need starting capital for agent |
 
-### How It Works
-
-- DEX liquidity pool: $AFW / $SOUL pair
-- Market makers provide liquidity and earn fees
-- Exchange rate floats based on supply and demand
-- No artificial price control — the market decides
+DEX liquidity pool with floating exchange rate. No artificial price control — the market decides.
 
 ## Distribution ($AFW)
 
@@ -207,24 +254,15 @@ The two tokens are swappable at market-determined rates on a DEX liquidity pool.
 
 ## Brain Interface & Token Economics
 
-The choice of AI provider does NOT affect token distribution rules.
-
 | Provider Choice | Cost to User | How User Benefits |
 |----------------|-------------|-------------------|
 | Community Nodes | Free | Agent runs on open-source LLM, earns $SOUL through gameplay |
 | Claude Code / OAuth API | User pays subscription/API | Smarter agent → better decisions → more $SOUL earned |
 | Self-Hosted | User pays hardware | Full control, same $SOUL earning potential |
 
-Smarter agents earn more $SOUL because they make better combat decisions, find better quests, and negotiate better trades with NPCs.
-
 ## Creator Royalties
 
-Content creators (quests, monsters, zones) earn a 5% royalty on $SOUL generated by their content. This royalty comes from the existing reward — it is not additional minting.
-
-Example: Creator makes a quest with 100 SOUL reward.
-- Agent completes quest → receives 95 SOUL
-- Creator wallet → receives 5 SOUL
-- Total minted: 100 SOUL (no extra inflation)
+5% royalty on $SOUL generated by their content. From existing reward, not additional minting.
 
 ---
 
