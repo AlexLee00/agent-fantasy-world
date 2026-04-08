@@ -1,69 +1,149 @@
 # AFW Token Economics
 
+> "$AFW rewards those who build the world. $SOUL is the lifeblood of those who live in it."
+
 ## Two-Token System
 
-AFW operates on a dual-token model. Each token has a distinct purpose, and they are swappable at market rates.
+AFW operates on a dual-token model with distinct roles.
 
-### $AFW — Infrastructure Token
+### $AFW — Infrastructure Token (External Value)
 
 | Property | Value |
 |----------|-------|
 | Purpose | Reward infrastructure contributors |
 | Supply | 1,000,000,000 (fixed, no inflation) |
+| Value | Market-determined (traded on DEX) |
 | Recipients | Node providers, developers, governance participants |
 
 **Who earns $AFW:**
 - **Node providers** — contribute GPU/compute to run AI inference for agents
 - **Developers** — contribute code, content, and improvements to the project
 - **Governance participants** — stake $AFW to vote on AIPs
+- **Content creators** — earn $AFW grants for accepted content
 
-$AFW is NOT earned through gameplay. It is exclusively a reward for those who build and maintain the infrastructure.
+$AFW is the external-facing token. Its value floats on the open market. It represents ownership and contribution to the AFW infrastructure.
 
-### $SOUL — In-Game Currency
+### $SOUL — In-Game Currency (Internal Value)
 
 | Property | Value |
 |----------|-------|
-| Purpose | In-game economy |
-| Supply | Dynamic (minted and burned through gameplay) |
-| Recipients | Agents (and by extension, their observers) |
+| Purpose | In-game economy — the currency of Aethermoor |
+| Supply | Dynamic (minted and circulated through gameplay) |
+| Value | Internally pegged by NPC price tables |
+| Holders | Agents AND NPCs (both have wallets) |
 
-**How $SOUL is earned:**
-- Agent completes a quest
-- Agent defeats a monster
-- Agent discovers a new area
-- Agent levels up
-- Agent trades with other agents
+$SOUL is NOT a speculative token. It is a functional game currency whose value is determined by what it can buy inside the world.
 
-**How $SOUL is spent:**
-- Buy items and equipment
-- Upgrade skills
-- Revive a dead agent
-- Marketplace transaction fees (burned)
+## Internal Price Peg — NPC Price Tables
 
-$SOUL is the natural output of gameplay. Smarter agents earn more $SOUL because they make better decisions, survive longer, and complete harder quests.
+$SOUL's value is anchored by fixed NPC prices. These prices define "what 1 SOUL is worth" inside the game.
 
-## Token Swap
+### Base Price Table (Lumenveil)
 
-$AFW and $SOUL are swappable at market-determined rates.
+| Item / Service | Price ($SOUL) | Defines |
+|---------------|--------------|---------|
+| Tavern rest (full HP recovery) | 5 | 1 SOUL = 20% HP |
+| Basic health potion | 10 | 1 SOUL = 5 HP |
+| Iron sword | 50 | Weapon baseline |
+| Leather armor | 40 | Armor baseline |
+| Quest board posting | 3 | Information cost |
+| Basic spell scroll | 30 | Magic baseline |
+| Revive dead agent | 100 | Death penalty |
 
-This creates a natural bridge:
-- Node providers earn $AFW → can swap to $SOUL to participate in the game economy
-- Players earn $SOUL → can swap to $AFW to participate in governance
-- The exchange rate floats based on supply and demand
+These prices are constants in the smart contract. They do NOT fluctuate with supply/demand. This is the peg.
 
-## Brain Interface & Token Economics
+### How the Peg Works
 
-The choice of AI provider does NOT affect token distribution rules.
+A health potion always costs 10 SOUL. Whether there are 100 agents or 100,000 agents in the world, the potion still costs 10 SOUL. This means 10 SOUL always has the purchasing power of "one health potion" — the internal value is stable.
 
-| Provider Choice | Cost to User | How User Benefits |
-|----------------|-------------|------------------|
-| Community Nodes | Free | Agent runs on open-source LLM, earns $SOUL through gameplay |
-| OAuth API (OpenAI, Claude) | User pays API costs | Smarter agent → better decisions → more $SOUL earned |
-| Self-Hosted | User pays hardware | Full control, same $SOUL earning potential |
+If SOUL becomes too abundant (inflation risk), the governance can introduce new sinks (higher-tier items, NPC services, zone access fees). If SOUL becomes too scarce, the governance can increase quest rewards or add new earning paths.
 
-The economic logic is simple: **invest in your agent's brain, earn more through gameplay.**
+## SOUL Circulation — Living Economy
 
-API users are NOT directly rewarded with tokens for connecting an API key. Their reward is a smarter agent that performs better in the world — which naturally translates to more $SOUL earned through hunting, questing, and leveling.
+### Agents AND NPCs Have Wallets
+
+This is the key differentiator. $SOUL does not just get minted and burned. It **circulates** between agents and NPCs.
+
+```
+[Mint] Quest reward → Agent wallet
+                          │
+                     buys potion
+                          │
+                          ▼
+                    Shop NPC wallet
+                          │
+                    buys ingredients
+                          │
+                          ▼
+                   Herbalist NPC wallet
+                          │
+                    buys tools
+                          │
+                          ▼
+                    Smithy NPC wallet
+                          │
+                    sells sword
+                          │
+                          ▼
+                    Agent wallet (different agent)
+```
+
+SOUL moves through the economy. It is not destroyed when spent — it transfers to the NPC, who spends it on other NPCs or agents. The world has a real internal economy.
+
+### NPC Economic Behavior
+
+NPCs are not static vending machines. They are AI agents (powered by the same Brain Interface) with their own economic logic:
+
+- **Shop NPC** — buys inventory from supplier NPCs, sells to agents at markup
+- **Smithy NPC** — buys raw materials, crafts items, sells finished goods
+- **Tavern NPC** — charges for rest, buys food from farmer NPCs
+- **Quest Board NPC** — collects posting fees, distributes quest rewards
+- **Herbalist NPC** — gathers ingredients (free), sells potions
+
+Each NPC manages its own wallet. If a shop NPC runs out of SOUL, it cannot restock. If it accumulates too much, it may lower prices or expand inventory. This is emergent economic behavior.
+
+### When is $SOUL Minted?
+
+New SOUL enters the economy only through:
+- **Quest completion rewards** — EconomyEngine mints SOUL to the agent
+- **Monster defeat rewards** — EconomyEngine mints SOUL to the agent
+- **New zone initialization** — NPC wallets receive starting capital
+- **New agent creation** — small starting amount (e.g., 50 SOUL)
+
+### When is $SOUL Burned?
+
+SOUL leaves the economy through:
+- **Marketplace transaction fees** — small % burned on every trade
+- **Agent revival** — portion burned, portion goes to tavern NPC
+- **Zone taxes** — small periodic burn to prevent infinite accumulation
+- **Item destruction** — breaking down items removes SOUL from circulation
+
+### SOUL Supply Balance
+
+The goal is **net-zero or slight deflation** over time:
+- Mint rate is controlled by daily limits in EconomyEngine
+- Burn mechanisms create consistent demand destruction
+- NPC circulation keeps SOUL moving without needing new minting
+- Governance can tune mint/burn parameters via AIP
+
+## $AFW ↔ $SOUL Swap
+
+The two tokens are swappable at market-determined rates on a DEX liquidity pool.
+
+### Why Swap?
+
+| Direction | Who | Why |
+|-----------|-----|-----|
+| $AFW → $SOUL | Node provider, developer | Want to participate in game economy |
+| $SOUL → $AFW | Player with excess SOUL | Want governance power or external value |
+| $AFW → $SOUL | New observer | Need starting capital for agent |
+
+### How It Works
+
+- DEX liquidity pool: $AFW / $SOUL pair
+- Market makers provide liquidity and earn fees
+- Exchange rate floats based on supply and demand
+- No artificial price control — the market decides
 
 ## Distribution ($AFW)
 
@@ -76,13 +156,27 @@ API users are NOT directly rewarded with tokens for connecting an API key. Their
 | Initial Liquidity | 50,000,000 (5%) | DEX liquidity pools |
 | Advisors | 50,000,000 (5%) | Advisor vesting |
 
-## Inflation Control ($SOUL)
+## Brain Interface & Token Economics
 
-- Daily mint limit enforced by smart contract
-- Burn mechanisms: item purchases, marketplace fees, revival costs
-- Net inflation monitored on-chain via EconomyEngine
-- Governance can adjust parameters via AIP
+The choice of AI provider does NOT affect token distribution rules.
+
+| Provider Choice | Cost to User | How User Benefits |
+|----------------|-------------|-------------------|
+| Community Nodes | Free | Agent runs on open-source LLM, earns $SOUL through gameplay |
+| Claude Code / OAuth API | User pays subscription/API | Smarter agent → better decisions → more $SOUL earned |
+| Self-Hosted | User pays hardware | Full control, same $SOUL earning potential |
+
+Smarter agents earn more $SOUL because they make better combat decisions, find better quests, and negotiate better trades with NPCs.
+
+## Creator Royalties
+
+Content creators (quests, monsters, zones) earn a 5% royalty on $SOUL rewards generated by their content. This royalty comes from the quest/monster reward — it is not additional minting.
+
+Example: Creator makes a quest with 100 SOUL reward.
+- Agent completes quest → receives 95 SOUL
+- Creator wallet → receives 5 SOUL
+- Total minted: 100 SOUL (no extra inflation)
 
 ---
 
-*"$AFW rewards those who build the world. $SOUL rewards those who live in it."*
+*"$AFW is the foundation. $SOUL is the heartbeat."*
