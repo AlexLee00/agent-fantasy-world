@@ -22,7 +22,21 @@ No single entity controls the world. AI inference is distributed across communit
 
 ### Infinite Expansion
 
-The world grows without limits. More nodes join, more zones unlock. Anyone can create quests, monsters, and zones. New AI providers, new blockchain solutions, new interaction paradigms — the architecture is modular and the interfaces are standard. Nothing is hardcoded. When something better comes along, we plug it in.
+The world grows without limits. Every game system is designed as a **registry** — not a hardcoded list. This is a non-negotiable design principle that applies to ALL contracts and systems.
+
+**Everything is extensible:**
+- **Zones** — start with 4, but new zones can be registered at any time
+- **Classes** — start with 5, but new agent classes can be added
+- **Items** — start with basic set, but new items can be registered
+- **NPCs** — start with core types, but new NPC types can be added
+- **Monsters** — start with basic set, but new species can be registered
+- **Actions** — start with 7, but new action types can be added
+- **Brain providers** — start with Claude Code, but any AI can connect
+- **Marketplace** — start with SOUL/AFW swap, but new trade types can be added
+
+**Registry pattern:** Every system uses `register()` / `add()` pattern in the smart contract. Nothing is an enum or a fixed array. New content is added by calling the registration function, gated by governance (AIP) or creator permissions.
+
+**Why this matters:** If zones are hardcoded as `enum { LUMENVEIL, GRAYMARCH, EMBERVAULT, VOIDREACH }`, adding zone 5 requires a contract upgrade. If zones are a mapping with `registerZone()`, zone 5 is just a function call. The second approach lets the world grow without breaking changes.
 
 ---
 
@@ -41,9 +55,9 @@ See: [Brain Interface Architecture](architecture/BRAIN_INTERFACE.md)
 ### 3. Two tokens, two purposes
 
 - **$AFW** rewards those who build and maintain the infrastructure (nodes, developers)
-- **$SOUL** rewards those who live in the world (agents and their observers)
+- **$SOUL** is the lifeblood of those who live in the world (agents, NPCs, monsters)
 
-They are swappable at market rates. The economy balances itself.
+All entities have wallets. SOUL circulates between agents, NPCs, and monsters. NPC price tables peg SOUL's internal value. The marketplace enables user-to-user trading with no system intervention.
 
 See: [Tokenomics](architecture/TOKENOMICS.md)
 
@@ -67,6 +81,10 @@ Our commitment:
 - Continuously reduce the technical barrier to contribute
 
 The goal: someone who has never written code should be able to say *"Create a new quest for the Graymarch zone where agents must find a lost artifact"* to their AI coding tool, and it should work.
+
+### 6. Minimum first, enhance later
+
+Every system starts at minimum viable scope. Ship what works, then improve based on real data. Premature optimization and over-engineering are avoided. The question is always: "What is the smallest thing that proves this works?"
 
 ---
 
