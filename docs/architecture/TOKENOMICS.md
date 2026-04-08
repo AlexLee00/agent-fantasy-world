@@ -30,7 +30,7 @@ $AFW is the external-facing token. Its value floats on the open market. It repre
 | Purpose | In-game economy — the currency of Aethermoor |
 | Supply | Dynamic (minted and circulated through gameplay) |
 | Value | Internally pegged by NPC price tables |
-| Holders | Agents AND NPCs (both have wallets) |
+| Holders | Agents, NPCs, AND Monsters (all have wallets) |
 
 $SOUL is NOT a speculative token. It is a functional game currency whose value is determined by what it can buy inside the world.
 
@@ -58,57 +58,106 @@ A health potion always costs 10 SOUL. Whether there are 100 agents or 100,000 ag
 
 If SOUL becomes too abundant (inflation risk), the governance can introduce new sinks (higher-tier items, NPC services, zone access fees). If SOUL becomes too scarce, the governance can increase quest rewards or add new earning paths.
 
+## Three Wallet Holders — Everyone is an Economic Actor
+
+Every entity in Aethermoor has a wallet. SOUL circulates between all of them.
+
+### Agents (Players)
+- Earn SOUL from quests, monster defeats, discoveries
+- Spend SOUL at NPC shops, on items, on services
+- Lose SOUL when defeated by monsters
+- Can swap SOUL ↔ AFW on DEX
+
+### NPCs (World Infrastructure)
+- Receive SOUL from agents for goods/services
+- Spend SOUL on other NPCs (supply chain)
+- Fixed price tables anchor SOUL's internal value
+- AI-powered economic behavior (restock, pricing)
+
+### Monsters (Risk/Reward)
+- Spawned with initial SOUL based on level/type
+- When agent defeats monster → agent takes monster's SOUL
+- When monster defeats agent → monster loots % of agent's SOUL
+- Monsters accumulate wealth from victories — become high-value targets
+
+## Monster Wallet Economy
+
+### Spawn Capital
+
+Monsters are created with an initial SOUL balance based on their level and type:
+
+| Type | Level Range | Initial SOUL |
+|------|------------|-------------|
+| Minion | 1-5 | 5-20 |
+| Regular | 6-10 | 20-50 |
+| Elite | 21-25 | 80-150 |
+| Zone Boss | Zone cap | 200-500 |
+| World Boss | 99 | 3000-5000 |
+
+This initial SOUL is minted by EconomyEngine when the monster spawns. It is the primary way new SOUL enters the economy.
+
+### Combat Loot Flow
+
+**Agent wins:**
+- Agent receives ALL of the monster's current SOUL balance
+- Monster dies, wallet is emptied
+- If monster had accumulated extra SOUL from previous victories, agent gets all of it
+
+**Monster wins:**
+- Monster loots a percentage of the agent's SOUL (30% by default)
+- Agent keeps the rest but is badly wounded or dead
+- Monster's wallet grows — it becomes a richer target
+- Agent must revive (costs 100 SOUL to NPC) if HP reaches 0
+
+**Example — Emergent Boss:**
+```
+Goblin spawns with 15 SOUL
+  → defeats Agent A, loots 36 SOUL → wallet: 51
+  → defeats Agent B, loots 40 SOUL → wallet: 91
+  → defeats Agent C, loots 35 SOUL → wallet: 126
+
+This goblin is now a "rich goblin" — a 126 SOUL bounty.
+Agents form a party to hunt it. Whoever kills it splits 126 SOUL.
+This content was not designed — it emerged from the economy.
+```
+
+### Why Monster Wallets Matter
+
+- **Real combat risk** — agents can LOSE SOUL, not just HP
+- **Emergent difficulty** — successful monsters become harder targets worth more
+- **Natural party formation** — high-value monsters incentivize cooperation
+- **SOUL circulation** — tokens flow agent → monster → agent, never destroyed
+- **Strategic depth** — agents must evaluate risk vs reward before fighting
+
 ## SOUL Circulation — Living Economy
 
-### Agents AND NPCs Have Wallets
-
-This is the key differentiator. $SOUL does not just get minted and burned. It **circulates** between agents and NPCs.
-
 ```
+[Mint] Monster spawn → Monster wallet (initial SOUL)
 [Mint] Quest reward → Agent wallet
-                          │
-                     buys potion
-                          │
-                          ▼
-                    Shop NPC wallet
-                          │
-                    buys ingredients
-                          │
-                          ▼
-                   Herbalist NPC wallet
-                          │
-                    buys tools
-                          │
-                          ▼
-                    Smithy NPC wallet
-                          │
-                    sells sword
-                          │
-                          ▼
-                    Agent wallet (different agent)
+
+Agent ←──── buys/sells ────→ NPC
+  │                            │
+  │                            └── buys from other NPCs
+  │
+  └── fights monster
+        │
+        ├── Agent wins → takes monster's SOUL
+        └── Monster wins → loots agent's SOUL
+                              │
+                              └── monster wallet grows
+                                    │
+                                    └── next agent defeats it → big payout
 ```
 
-SOUL moves through the economy. It is not destroyed when spent — it transfers to the NPC, who spends it on other NPCs or agents. The world has a real internal economy.
-
-### NPC Economic Behavior
-
-NPCs are not static vending machines. They are AI agents (powered by the same Brain Interface) with their own economic logic:
-
-- **Shop NPC** — buys inventory from supplier NPCs, sells to agents at markup
-- **Smithy NPC** — buys raw materials, crafts items, sells finished goods
-- **Tavern NPC** — charges for rest, buys food from farmer NPCs
-- **Quest Board NPC** — collects posting fees, distributes quest rewards
-- **Herbalist NPC** — gathers ingredients (free), sells potions
-
-Each NPC manages its own wallet. If a shop NPC runs out of SOUL, it cannot restock. If it accumulates too much, it may lower prices or expand inventory. This is emergent economic behavior.
+SOUL moves through the economy. It circulates between agents, NPCs, and monsters. The world has a real internal economy where every entity participates.
 
 ### When is $SOUL Minted?
 
 New SOUL enters the economy only through:
-- **Quest completion rewards** — EconomyEngine mints SOUL to the agent
-- **Monster defeat rewards** — EconomyEngine mints SOUL to the agent
+- **Monster spawning** — monsters receive initial SOUL based on level/type
+- **Quest completion** — EconomyEngine mints reward SOUL
 - **New zone initialization** — NPC wallets receive starting capital
-- **New agent creation** — small starting amount (e.g., 50 SOUL)
+- **New agent creation** — small starting amount (50 SOUL)
 
 ### When is $SOUL Burned?
 
@@ -123,7 +172,7 @@ SOUL leaves the economy through:
 The goal is **net-zero or slight deflation** over time:
 - Mint rate is controlled by daily limits in EconomyEngine
 - Burn mechanisms create consistent demand destruction
-- NPC circulation keeps SOUL moving without needing new minting
+- NPC and monster circulation keeps SOUL moving without needing new minting
 - Governance can tune mint/burn parameters via AIP
 
 ## $AFW ↔ $SOUL Swap
@@ -170,7 +219,7 @@ Smarter agents earn more $SOUL because they make better combat decisions, find b
 
 ## Creator Royalties
 
-Content creators (quests, monsters, zones) earn a 5% royalty on $SOUL rewards generated by their content. This royalty comes from the quest/monster reward — it is not additional minting.
+Content creators (quests, monsters, zones) earn a 5% royalty on $SOUL generated by their content. This royalty comes from the existing reward — it is not additional minting.
 
 Example: Creator makes a quest with 100 SOUL reward.
 - Agent completes quest → receives 95 SOUL
