@@ -5,6 +5,7 @@ defmodule AFW.Agent.Server do
 
   alias AFW.Agent.State
   alias AFW.Agent.Loop
+  alias AFW.Simulation.Metrics
 
   def start_link(opts) do
     name =
@@ -44,9 +45,25 @@ defmodule AFW.Agent.Server do
 
   @impl true
   def handle_info(:tick, state) do
+    started_at = System.monotonic_time(:millisecond)
     new_state = Loop.execute_tick(state)
+    duration_ms = System.monotonic_time(:millisecond) - started_at
     action = (new_state.last_action || %{})[:action] || "IDLE"
-    Logger.info("Agent ##{new_state.agent_id} tick=#{new_state.tick_count} action=#{action}")
+    target = (new_state.last_action || %{})[:target] || "-"
+    summary = (new_state.last_action || %{})[:summary] || "-"
+
+    Logger.info(
+      "tick=#{new_state.tick_count} agent=#{new_state.agent_id} label=#{new_state.label} action=#{action} target=#{target} duration_ms=#{duration_ms} summary=\"#{summary}\""
+    )
+
+    Metrics.record_tick(%{
+      agent_id: new_state.agent_id,
+      label: new_state.label,
+      tick: new_state.tick_count,
+      action: action,
+      target: target,
+      duration_ms: duration_ms
+    })
 
     Phoenix.PubSub.broadcast(
       AFW.PubSub,
@@ -66,6 +83,8 @@ defmodule AFW.Agent.Server do
         "guardian",
         {:agent_crashed, state.agent_id, Exception.message(error)}
       )
+
+      Metrics.record_crash(state.agent_id, Exception.message(error))
 
       reraise error, __STACKTRACE__
   end

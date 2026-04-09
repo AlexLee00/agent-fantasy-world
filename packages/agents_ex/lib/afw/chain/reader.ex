@@ -1,7 +1,7 @@
 defmodule AFW.Chain.Reader do
   @moduledoc "Stateless read-only chain access with per-call concurrency."
 
-  alias AFW.Chain.{ABI, Contracts}
+  alias AFW.Chain.{ABI, Cache, Contracts, Pool}
   alias Ethereumex.HttpClient
 
   @tracked_contracts [
@@ -22,6 +22,11 @@ defmodule AFW.Chain.Reader do
     :marketplace
   ]
   @task_timeout 30_000
+  @zone_ttl 10_000
+  @monster_ttl 5_000
+  @npc_ttl 30_000
+  @orders_ttl 5_000
+  @treasury_ttl 5_000
   def tracked_contracts, do: @tracked_contracts
 
   def snapshot(agent_id) do
@@ -29,16 +34,19 @@ defmodule AFW.Chain.Reader do
     zone_id = agent["zoneId"]
     observer = agent["observer"]
 
-    tasks = [
-      Task.async(fn -> get_zone(zone_id) end),
-      Task.async(fn -> get_monsters_in_zone(zone_id) end),
-      Task.async(fn -> get_npcs_in_zone(zone_id) end),
-      Task.async(fn -> get_agent_items(observer) end),
-      Task.async(fn -> active_orders() end),
-      Task.async(fn -> get_treasury_balance() end)
-    ]
+    zone_task = Task.async(fn -> get_zone(zone_id) end)
+    monsters_task = Task.async(fn -> get_monsters_in_zone(zone_id) end)
+    npcs_task = Task.async(fn -> get_npcs_in_zone(zone_id) end)
+    items_task = Task.async(fn -> get_agent_items(observer) end)
+    orders_task = Task.async(fn -> active_orders() end)
+    treasury_task = Task.async(fn -> get_treasury_balance() end)
 
-    [zone, monsters, npcs, items, orders, treasury_balance] = Task.await_many(tasks, @task_timeout)
+    zone = safe_await(zone_task, %{"zoneId" => zone_id, "name" => "Unknown", "dangerLabel" => "UNKNOWN", "connections" => []})
+    monsters = safe_await(monsters_task, [])
+    npcs = safe_await(npcs_task, [])
+    items = safe_await(items_task, [])
+    orders = safe_await(orders_task, [])
+    treasury_balance = safe_await(treasury_task, 0)
 
     %{
       agent: agent,
@@ -71,58 +79,64 @@ defmodule AFW.Chain.Reader do
   end
 
   def get_zone(zone_id) do
-    [zone_tuple] = call_contract(:world_map, "getZone", [zone_id])
-    {zone_key, name, korean_name, danger_id, required_nodes, max_agents, unlocked, connections, unlocked_at} =
-      zone_tuple
+    Cache.get_or_fetch({:zone, zone_id}, @zone_ttl, fn ->
+      [zone_tuple] = call_contract(:world_map, "getZone", [zone_id])
+      {zone_key, name, korean_name, danger_id, required_nodes, max_agents, unlocked, connections, unlocked_at} =
+        zone_tuple
 
-    %{
-      "zoneId" => zone_key,
-      "name" => name,
-      "koreanName" => korean_name,
-      "dangerId" => danger_id,
-      "dangerLabel" => danger_label(danger_id),
-      "requiredNodes" => required_nodes,
-      "maxAgents" => max_agents,
-      "isUnlocked" => unlocked,
-      "connections" => connections,
-      "unlockedAt" => unlocked_at
-    }
+      %{
+        "zoneId" => zone_key,
+        "name" => name,
+        "koreanName" => korean_name,
+        "dangerId" => danger_id,
+        "dangerLabel" => danger_label(danger_id),
+        "requiredNodes" => required_nodes,
+        "maxAgents" => max_agents,
+        "isUnlocked" => unlocked,
+        "connections" => connections,
+        "unlockedAt" => unlocked_at
+      }
+    end)
   end
 
   def get_monsters_in_zone(zone_id) do
-    total = call_uint(:monster_registry, "totalMonsters", [])
+    Cache.get_or_fetch({:monsters, zone_id}, @monster_ttl, fn ->
+      total = call_uint(:monster_registry, "totalMonsters", [])
 
-    if total == 0 do
-      []
-    else
-      1..total
-      |> Task.async_stream(&monster_entry(&1, zone_id), timeout: @task_timeout, max_concurrency: 8, ordered: false)
-      |> Enum.flat_map(fn
-        {:ok, nil} -> []
-        {:ok, entry} -> [entry]
-        {:exit, _} -> []
-      end)
-      |> Enum.sort_by(& &1.monster_id)
-    end
+      if total == 0 do
+        []
+      else
+        1..total
+        |> Task.async_stream(&monster_entry(&1, zone_id), timeout: @task_timeout, max_concurrency: 8, ordered: false)
+        |> Enum.flat_map(fn
+          {:ok, nil} -> []
+          {:ok, entry} -> [entry]
+          {:exit, _} -> []
+        end)
+        |> Enum.sort_by(& &1.monster_id)
+      end
+    end)
   rescue
     _ -> []
   end
 
   def get_npcs_in_zone(zone_id) do
-    total = call_uint(:npc_registry, "totalNPCs", [])
+    Cache.get_or_fetch({:npcs, zone_id}, @npc_ttl, fn ->
+      total = call_uint(:npc_registry, "totalNPCs", [])
 
-    if total == 0 do
-      []
-    else
-      1..total
-      |> Task.async_stream(&npc_entry(&1, zone_id), timeout: @task_timeout, max_concurrency: 8, ordered: false)
-      |> Enum.flat_map(fn
-        {:ok, nil} -> []
-        {:ok, entry} -> [entry]
-        {:exit, _} -> []
-      end)
-      |> Enum.sort_by(& &1.npc_id)
-    end
+      if total == 0 do
+        []
+      else
+        1..total
+        |> Task.async_stream(&npc_entry(&1, zone_id), timeout: @task_timeout, max_concurrency: 8, ordered: false)
+        |> Enum.flat_map(fn
+          {:ok, nil} -> []
+          {:ok, entry} -> [entry]
+          {:exit, _} -> []
+        end)
+        |> Enum.sort_by(& &1.npc_id)
+      end
+    end)
   rescue
     _ -> []
   end
@@ -148,26 +162,30 @@ defmodule AFW.Chain.Reader do
   end
 
   def active_orders do
-    total = call_uint(:marketplace, "totalOrders", [])
+    Cache.get_or_fetch(:orders, @orders_ttl, fn ->
+      total = call_uint(:marketplace, "totalOrders", [])
 
-    if total == 0 do
-      []
-    else
-      1..total
-      |> Task.async_stream(&order_entry/1, timeout: @task_timeout, max_concurrency: 8, ordered: false)
-      |> Enum.flat_map(fn
-        {:ok, nil} -> []
-        {:ok, entry} -> [entry]
-        {:exit, _} -> []
-      end)
-      |> Enum.sort_by(& &1.order_id)
-    end
+      if total == 0 do
+        []
+      else
+        1..total
+        |> Task.async_stream(&order_entry/1, timeout: @task_timeout, max_concurrency: 8, ordered: false)
+        |> Enum.flat_map(fn
+          {:ok, nil} -> []
+          {:ok, entry} -> [entry]
+          {:exit, _} -> []
+        end)
+        |> Enum.sort_by(& &1.order_id)
+      end
+    end)
   rescue
     _ -> []
   end
 
   def get_treasury_balance do
-    call_uint(:event_treasury, "balance", [])
+    Cache.get_or_fetch(:treasury, @treasury_ttl, fn ->
+      call_uint(:event_treasury, "balance", [])
+    end)
   rescue
     _ -> 0
   end
@@ -193,9 +211,7 @@ defmodule AFW.Chain.Reader do
     derive_address!(decode_hex_key!(private_key))
   end
 
-  def rpc_url do
-    Application.fetch_env!(:afw, :rpc_url)
-  end
+  def rpc_url, do: Application.fetch_env!(:afw, :rpc_url)
 
   def call_contract(contract_key, function_name, args) do
     {:ok, data} = ABI.encode(function_name, args, abi_name(contract_key))
@@ -205,7 +221,7 @@ defmodule AFW.Chain.Reader do
       "data" => data
     }
 
-    case HttpClient.eth_call(tx, "latest", rpc_opts()) do
+    case Pool.request(fn url -> HttpClient.eth_call(tx, "latest", [url: url]) end) do
       {:ok, result} ->
         ABI.decode_call_result(function_name, result, abi_name(contract_key), length(args))
 
@@ -395,5 +411,11 @@ defmodule AFW.Chain.Reader do
     |> Macro.camelize()
   end
 
-  defp rpc_opts, do: [url: rpc_url()]
+  defp safe_await(task, fallback) do
+    Task.await(task, @task_timeout)
+  catch
+    :exit, _ ->
+      Task.shutdown(task, :brutal_kill)
+      fallback
+  end
 end

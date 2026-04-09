@@ -2,14 +2,15 @@ defmodule AFW.Chain.Writer do
   @moduledoc "Single-process write path that owns nonce management and raw transaction signing."
   use GenServer
 
-  alias AFW.Chain.{ABI, Contracts, RLP, Reader}
+  alias AFW.Chain.{ABI, Contracts, Pool, RLP, Reader}
   alias Ethereumex.HttpClient
 
   @chain_id 84_532
-  @max_receipt_polls 30
-  @receipt_poll_ms 2_000
+  @max_receipt_polls 20
+  @receipt_poll_steps [300, 500, 750, 1_000, 1_250, 1_500]
   @gas_padding_bps 1_200
   @approval_padding 10 * 1_000_000_000_000_000_000
+  @gas_cache_ttl_ms 60_000
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -67,7 +68,8 @@ defmodule AFW.Chain.Writer do
       account_address: account_address,
       contracts: Contracts.all(),
       latest_agent_id: 0,
-      next_nonce: fetch_nonce_from_chain(account_address, Keyword.get(opts, :rpc_url) || Application.fetch_env!(:afw, :rpc_url))
+      next_nonce: fetch_nonce_from_chain(account_address),
+      gas_cache: %{}
     }
 
     {:ok, state}
@@ -260,7 +262,7 @@ defmodule AFW.Chain.Writer do
     max_fee = fetch_max_fee(state, max_priority_fee)
     to = normalize_address(state.contracts[contract_key])
 
-    gas_limit =
+    {gas_limit, state} =
       estimate_gas(
         %{
           "from" => state.account_address,
@@ -268,7 +270,8 @@ defmodule AFW.Chain.Writer do
           "data" => data,
           "value" => quantity(0)
         },
-        state
+        state,
+        {contract_key, function_name}
       )
 
     raw_tx =
@@ -284,7 +287,9 @@ defmodule AFW.Chain.Writer do
         state.private_key
       )
 
-    case HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(raw_tx, case: :lower), rpc_opts(state)) do
+    case Pool.request(fn url ->
+           HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(raw_tx, case: :lower), [url: url])
+         end) do
       {:ok, tx_hash} ->
         receipt = wait_for_receipt!(tx_hash, state)
 
@@ -308,29 +313,29 @@ defmodule AFW.Chain.Writer do
     end
   end
 
-  defp fetch_nonce_from_chain(account_address, rpc_url) do
-    case HttpClient.eth_get_transaction_count(account_address, "pending", [url: rpc_url]) do
+  defp fetch_nonce_from_chain(account_address) do
+    case Pool.request(fn url -> HttpClient.eth_get_transaction_count(account_address, "pending", [url: url]) end) do
       {:ok, quantity_hex} -> quantity_to_integer(quantity_hex)
       {:error, reason} -> raise "Unable to fetch nonce: #{inspect(reason)}"
     end
   end
 
-  defp fetch_chain_id(state) do
-    case HttpClient.eth_chain_id(rpc_opts(state)) do
+  defp fetch_chain_id(_state) do
+    case Pool.request(fn url -> HttpClient.eth_chain_id([url: url]) end) do
       {:ok, quantity_hex} -> quantity_to_integer(quantity_hex)
       {:error, _} -> @chain_id
     end
   end
 
-  defp fetch_max_priority_fee(state) do
-    case HttpClient.eth_max_priority_fee_per_gas(rpc_opts(state)) do
+  defp fetch_max_priority_fee(_state) do
+    case Pool.request(fn url -> HttpClient.eth_max_priority_fee_per_gas([url: url]) end) do
       {:ok, quantity_hex} -> quantity_to_integer(quantity_hex)
       {:error, _} -> 100_000_000
     end
   end
 
-  defp fetch_max_fee(state, max_priority_fee) do
-    case HttpClient.eth_fee_history("0x1", "latest", [50], rpc_opts(state)) do
+  defp fetch_max_fee(_state, max_priority_fee) do
+    case Pool.request(fn url -> HttpClient.eth_fee_history("0x1", "latest", [50], [url: url]) end) do
       {:ok, %{"baseFeePerGas" => [base_fee_hex | _]}} ->
         base_fee = quantity_to_integer(base_fee_hex)
         base_fee * 2 + max_priority_fee
@@ -340,24 +345,39 @@ defmodule AFW.Chain.Writer do
     end
   end
 
-  defp estimate_gas(tx, state) do
-    case HttpClient.eth_estimate_gas(tx, rpc_opts(state)) do
-      {:ok, quantity_hex} ->
-        quantity_to_integer(quantity_hex)
-        |> Kernel.*(@gas_padding_bps)
-        |> div(1_000)
+  defp estimate_gas(tx, state, cache_key) do
+    now = System.monotonic_time(:millisecond)
 
-      {:error, reason} ->
-        raise "eth_estimateGas failed: #{inspect(reason)}"
+    case state.gas_cache[cache_key] do
+      %{gas_limit: gas_limit, expires_at: expires_at} when expires_at > now ->
+        {gas_limit, state}
+
+      _ ->
+        case Pool.request(fn url -> HttpClient.eth_estimate_gas(tx, [url: url]) end) do
+          {:ok, quantity_hex} ->
+            gas_limit =
+              quantity_to_integer(quantity_hex)
+              |> Kernel.*(@gas_padding_bps)
+              |> div(1_000)
+
+            {
+              gas_limit,
+              put_in(state.gas_cache[cache_key], %{gas_limit: gas_limit, expires_at: now + @gas_cache_ttl_ms})
+            }
+
+          {:error, reason} ->
+            raise "eth_estimateGas failed: #{inspect(reason)}"
+        end
     end
   end
 
   defp wait_for_receipt!(tx_hash, state, attempts \\ @max_receipt_polls)
 
   defp wait_for_receipt!(tx_hash, state, attempts) when attempts > 0 do
-    case HttpClient.eth_get_transaction_receipt(tx_hash, rpc_opts(state)) do
+    case Pool.request(fn url -> HttpClient.eth_get_transaction_receipt(tx_hash, [url: url]) end) do
       {:ok, nil} ->
-        Process.sleep(@receipt_poll_ms)
+        sleep_ms = Enum.at(@receipt_poll_steps, rem(@max_receipt_polls - attempts, length(@receipt_poll_steps)), List.last(@receipt_poll_steps))
+        Process.sleep(sleep_ms)
         wait_for_receipt!(tx_hash, state, attempts - 1)
 
       {:ok, receipt} ->
@@ -421,15 +441,13 @@ defmodule AFW.Chain.Writer do
     |> Macro.camelize()
   end
 
-  defp rpc_opts(state), do: [url: state.rpc_url]
-
   defp attempt_write(state, fun) do
     try do
       {payload, next_state} = fun.(state)
       {{:ok, payload}, next_state}
     rescue
       error ->
-        {{:error, Exception.message(error)}, %{state | next_nonce: fetch_nonce_from_chain(state.account_address, state.rpc_url)}}
+        {{:error, Exception.message(error)}, %{state | next_nonce: fetch_nonce_from_chain(state.account_address)}}
     end
   end
 end

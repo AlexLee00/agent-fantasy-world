@@ -8,6 +8,7 @@ defmodule AFW.Application do
       {Registry, keys: :unique, name: AFW.AgentRegistry},
       AFWWeb.Endpoint,
       {AFW.Chain.Writer, Application.get_all_env(:afw)},
+      {AFW.Simulation.Metrics, []},
       {AFW.Agent.Supervisor, []},
       {AFW.Guardian.Monitor, []}
     ]

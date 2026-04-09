@@ -25,6 +25,11 @@ end
 
 config :afw,
   rpc_url: System.get_env("RPC_URL", "https://base-sepolia-rpc.publicnode.com"),
+  rpc_urls: [
+    System.get_env("RPC_URL", "https://base-sepolia-rpc.publicnode.com"),
+    System.get_env("RPC_URL_FALLBACK_1", "https://sepolia.base.org"),
+    System.get_env("RPC_URL_FALLBACK_2", "https://base-sepolia.blockpi.network/v1/rpc/public")
+  ],
   private_key: System.get_env("PRIVATE_KEY", ""),
   brain_provider: System.get_env("BRAIN_PROVIDER", "claude-code"),
   claude_code_path: System.get_env("CLAUDE_CODE_PATH", "/opt/homebrew/bin/claude"),
@@ -37,6 +42,8 @@ config :afw,
     System.get_env("GUARDIAN_DASHBOARD_PATH", "../agents/logs/guardian_dashboard.json"),
   economy_metrics_path:
     System.get_env("ECONOMY_METRICS_PATH", "../agents/logs/economy_metrics.json"),
+  simulation_metrics_path:
+    System.get_env("SIMULATION_METRICS_PATH", "../agents/logs/simulation_metrics.json"),
   simulation_ticks: String.to_integer(System.get_env("SIMULATION_TICKS", "50")),
   contracts: %{
     afw_token: contract.("AFWToken"),
