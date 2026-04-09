@@ -23,6 +23,20 @@ defmodule AFWWeb.DashboardLive do
     {:noreply, assign(socket, agents: agents)}
   end
 
+  def handle_info({:settlement_optimistic, agent_id, settlement}, socket) do
+    {:noreply, assign(socket, agents: update_agent_settlement(socket.assigns.agents, agent_id, settlement))}
+  end
+
+  def handle_info({:settlement_confirmed, agent_id, _event_id, _payload}, socket) do
+    settlement = AFW.Settlement.State.settlement_summary(agent_id)
+    {:noreply, assign(socket, agents: update_agent_settlement(socket.assigns.agents, agent_id, settlement))}
+  end
+
+  def handle_info({:settlement_failed, agent_id, _event_id, _reason}, socket) do
+    settlement = AFW.Settlement.State.settlement_summary(agent_id)
+    {:noreply, assign(socket, agents: update_agent_settlement(socket.assigns.agents, agent_id, settlement))}
+  end
+
   def handle_info({:guardian_metrics, payload}, socket) do
     {:noreply, assign(socket, guardian: payload)}
   end
@@ -46,6 +60,9 @@ defmodule AFWWeb.DashboardLive do
       <div :for={agent <- @agents} style="padding:12px;margin-bottom:10px;border-radius:14px;background:#fffaf1;border:1px solid #ddd;">
         <strong><%= agent.label || "Agent" %> #<%= agent.agent_id %></strong>
         <div>Tick: <%= agent.tick_count %> · Last action: <%= (agent.last_action || %{})[:action] || "idle" %></div>
+        <div :if={agent[:settlement]}>
+          SOUL: <%= agent.settlement.confirmedSoul %> (confirmed) + <%= agent.settlement.pendingSoul %> (pending) = <%= agent.settlement.displaySoul %>
+        </div>
       </div>
 
       <h2>Guardian</h2>
@@ -66,5 +83,15 @@ defmodule AFWWeb.DashboardLive do
   defp upsert_agent(agents, agent_state) do
     others = Enum.reject(agents, &(&1.agent_id == agent_state.agent_id))
     others ++ [agent_state]
+  end
+
+  defp update_agent_settlement(agents, agent_id, settlement) do
+    Enum.map(agents, fn agent ->
+      if agent.agent_id == agent_id do
+        Map.put(agent, :settlement, settlement)
+      else
+        agent
+      end
+    end)
   end
 end

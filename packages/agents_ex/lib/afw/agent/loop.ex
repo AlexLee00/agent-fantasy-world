@@ -1,16 +1,18 @@
 defmodule AFW.Agent.Loop do
-  @moduledoc "Tick execution for Elixir agents. Mirrors the Python loop using OTP-friendly state transitions."
+  @moduledoc "Tick execution for Elixir agents using optimistic settlement as the write path."
 
   alias AFW.Brain.PromptBuilder
   alias AFW.Chain.Client
   alias AFW.Economy.Constants
+  alias AFW.Settlement.Hub
+  alias AFW.Settlement.State, as: SettlementState
   alias AFW.World.Combat
   alias AFW.World.Event
 
   @fight_cooldown_ticks 3
 
   def execute_tick(state) do
-    snapshot = Client.snapshot(state.agent_id)
+    snapshot = SettlementState.get_agent_view(state.agent_id)
 
     context = %{
       agent: snapshot.agent,
@@ -20,6 +22,7 @@ defmodule AFW.Agent.Loop do
       items: snapshot.items,
       orders: snapshot.orders,
       treasury_balance: snapshot.treasury_balance,
+      settlement: snapshot.settlement,
       history: Enum.take(state.history || [], -5)
     }
 
@@ -133,9 +136,7 @@ defmodule AFW.Agent.Loop do
 
     fight_cap = fight_cap(state.class_id)
     fight_budget_ok = total_recent_fights < fight_cap
-
-    class_prefers_caution =
-      state.class_id in [2, 3] and (state.tick_count == 0 or total_recent_fights >= 1)
+    class_prefers_caution = state.class_id in [2, 3] and (state.tick_count == 0 or total_recent_fights >= 1)
 
     fight_blocked =
       action == "FIGHT" and
@@ -180,20 +181,35 @@ defmodule AFW.Agent.Loop do
   end
 
   defp fight(context, event) do
-    case Combat.resolve(context, event) do
-      %{success?: false, error: reason} ->
-        fallback = explore(context, event)
-        %{summary: "FIGHT failed, fallback to EXPLORE: #{reason}. #{fallback.summary}", status: fallback.status}
+    spendable = SettlementState.spendable_soul(context.agent["agentId"])
 
-      result ->
-        result
+    if spendable < 0 do
+      explore_with_reason("FIGHT skipped, pending lock active")
+    else
+      simulation = Combat.simulate(context, event)
+      monster_id = get_in(event.metadata || %{}, [:monster_id]) || get_in(event.metadata || %{}, ["monster_id"]) || 1
+
+      Hub.submit_event(%{
+        type: :combat_result,
+        priority: :normal,
+        agent_id: context.agent["agentId"],
+        data: %{
+          agent_id: context.agent["agentId"],
+          monster_id: monster_id,
+          soul_changes: [%{agent_id: context.agent["agentId"], delta: simulation.optimistic_soul_delta}],
+          state_changes: simulation.state_changes,
+          summary: simulation.summary
+        }
+      })
+
+      %{summary: simulation.summary <> " (settling...)", status: :alive}
     end
   end
 
   defp rest(context) do
     tavern = Enum.find(context.npcs, &(&1.role == "TAVERN"))
     potion_id = Client.find_item_type_id(Constants.rest_item_name())
-    soul_balance = Client.get_soul_balance(context.agent["observer"])
+    soul_balance = SettlementState.spendable_soul(context.agent["agentId"])
 
     cond do
       tavern && potion_id ->
@@ -207,35 +223,30 @@ defmodule AFW.Agent.Loop do
             explore_with_reason("REST skipped, insufficient SOUL for #{tavern.name}")
 
           true ->
-            case Client.buy_from_npc(tavern.npc_id, potion_id) do
-              {:ok, _payload} ->
-                previous_hp = get_in(context, [:agent, "stats", "hp"]) || 0
-                healed_stats = heal_stats(context.agent["stats"])
+            previous_hp = get_in(context, [:agent, "stats", "hp"]) || 0
+            healed_stats = heal_stats(context.agent["stats"])
 
-                case Client.update_agent_state(
-                       context.agent["agentId"],
-                       healed_stats,
-                       0,
-                       context.agent["zoneId"],
-                       Constants.resting_status_id()
-                     ) do
-                  {:ok, _} ->
-                    %{
-                      summary:
-                        "REST #{tavern.name}##{tavern.npc_id} -> HP #{previous_hp}→#{healed_stats["hp"]}, -#{format_soul(price_entry.price)} SOUL",
-                      status: :resting
-                    }
+            Hub.submit_event(%{
+              type: :npc_purchase,
+              priority: :normal,
+              agent_id: context.agent["agentId"],
+              data: %{
+                agent_id: context.agent["agentId"],
+                npc_id: tavern.npc_id,
+                item_id: potion_id,
+                zone_id: context.agent["zoneId"],
+                status_id: Constants.resting_status_id(),
+                heal_stats: healed_stats,
+                soul_changes: [%{agent_id: context.agent["agentId"], delta: -price_entry.price}],
+                state_changes: [%{agent_id: context.agent["agentId"], field: :statusName, value: "RESTING"}],
+                summary: "REST #{tavern.name}##{tavern.npc_id} -> HP #{previous_hp}→#{healed_stats["hp"]}, -#{format_soul(price_entry.price)} SOUL"
+              }
+            })
 
-                  {:error, reason} ->
-                    %{
-                      summary: "REST purchase succeeded at #{tavern.name}, but state sync failed: #{reason}",
-                      status: :resting
-                    }
-                end
-
-              {:error, reason} ->
-                explore_with_reason("REST failed at #{tavern.name}: #{reason}")
-            end
+            %{
+              summary: "REST #{tavern.name}##{tavern.npc_id} -> HP #{previous_hp}→#{healed_stats["hp"]}, -#{format_soul(price_entry.price)} SOUL (settling...)",
+              status: :resting
+            }
         end
 
       true ->
@@ -250,42 +261,43 @@ defmodule AFW.Agent.Loop do
         npc -> npc.name
       end
 
-    %{
-      summary: "TALK #{npc_name} -> gathered local information off-chain.",
-      status: :alive
-    }
+    %{summary: "TALK #{npc_name} -> gathered local information off-chain.", status: :alive}
   end
 
   defp explore(_context, event) do
-    %{
-      summary: "EXPLORE #{event.target || "the frontier"} -> logged movement off-chain.",
-      status: :traveling
-    }
+    %{summary: "EXPLORE #{event.target || "the frontier"} -> logged movement off-chain.", status: :traveling}
   end
 
   defp trade(context) do
     case cheapest_order(context) do
       order when not is_nil(order) ->
-        soul_balance = Client.get_soul_balance(context.agent["observer"])
+        soul_balance = SettlementState.spendable_soul(context.agent["agentId"])
 
         cond do
           soul_balance < order.price_in_soul ->
             maybe_list_item(context)
 
           true ->
-            case Client.fill_market_order(order.order_id) do
-              {:ok, _} ->
-                burned = Float.round(order.price_in_soul * 0.02 / Constants.one_soul(), 2)
+            burned = Float.round(order.price_in_soul * 0.02 / Constants.one_soul(), 2)
 
-                %{
-                  summary:
-                    "TRADE buy item##{order.item_id} via order##{order.order_id} -> filled -#{format_soul(order.price_in_soul)} SOUL (#{burned} burned)",
-                  status: :alive
-                }
+            Hub.submit_event(%{
+              type: :marketplace_trade,
+              priority: :batch,
+              agent_id: context.agent["agentId"],
+              data: %{
+                mode: :buy,
+                order_id: order.order_id,
+                soul_changes: [%{agent_id: context.agent["agentId"], delta: -order.price_in_soul}],
+                summary:
+                  "TRADE buy item##{order.item_id} via order##{order.order_id} -> filled -#{format_soul(order.price_in_soul)} SOUL (#{burned} burned)"
+              }
+            })
 
-              {:error, reason} ->
-                explore_with_reason("TRADE buy failed for order##{order.order_id}: #{reason}")
-            end
+            %{
+              summary:
+                "TRADE buy item##{order.item_id} via order##{order.order_id} -> filled -#{format_soul(order.price_in_soul)} SOUL (#{burned} burned, settling...)",
+              status: :alive
+            }
         end
 
       nil ->
@@ -296,41 +308,34 @@ defmodule AFW.Agent.Loop do
   defp offchain_rest(context, source) do
     previous_hp = get_in(context, [:agent, "stats", "hp"]) || 0
     healed_hp = min(previous_hp + 10, get_in(context, [:agent, "stats", "maxHp"]) || previous_hp)
-
-    %{
-      summary: "REST #{source} -> HP #{previous_hp}→#{healed_hp} (off-chain recovery)",
-      status: :resting
-    }
+    %{summary: "REST #{source} -> HP #{previous_hp}→#{healed_hp} (off-chain recovery)", status: :resting}
   end
 
   defp heal_stats(stats) do
-    max_hp = stats["maxHp"] || stats[:max_hp] || stats[:maxHp] || 0
-    max_mp = stats["maxMp"] || stats[:max_mp] || stats[:maxMp] || 0
+    max_hp = stats["maxHp"] || 0
+    max_mp = stats["maxMp"] || 0
 
     %{
       "hp" => max_hp,
       "maxHp" => max_hp,
       "mp" => max_mp,
       "maxMp" => max_mp,
-      "attack" => stats["attack"] || stats[:attack] || 0,
-      "defense" => stats["defense"] || stats[:defense] || 0,
-      "speed" => stats["speed"] || stats[:speed] || 0
+      "attack" => stats["attack"] || 0,
+      "defense" => stats["defense"] || 0,
+      "speed" => stats["speed"] || 0
     }
   end
 
   defp cheapest_order(%{orders: orders, agent: agent}) do
     observer = String.downcase(agent["observer"] || "")
 
-    foreign_order =
+    foreign =
       orders
       |> Enum.reject(&(String.downcase(&1.seller || "") == observer))
       |> Enum.sort_by(& &1.price_in_soul)
       |> List.first()
 
-    foreign_order ||
-      (orders
-       |> Enum.sort_by(& &1.price_in_soul)
-       |> List.first())
+    foreign || (orders |> Enum.sort_by(& &1.price_in_soul) |> List.first())
   end
 
   defp maybe_list_item(context) do
@@ -338,16 +343,21 @@ defmodule AFW.Agent.Loop do
       [item | _] ->
         price_in_soul = trade_price(item)
 
-        case Client.create_market_order(item.item_id, 1, price_in_soul) do
-          {:ok, _} ->
-            %{
-              summary: "TRADE sell #{item.name}##{item.item_id} -> listed #{format_soul(price_in_soul)} SOUL",
-              status: :alive
-            }
+        Hub.submit_event(%{
+          type: :marketplace_trade,
+          priority: :batch,
+          agent_id: context.agent["agentId"],
+          data: %{
+            mode: :sell,
+            item_id: item.item_id,
+            amount: 1,
+            price_in_soul: price_in_soul,
+            soul_changes: [],
+            summary: "TRADE sell #{item.name}##{item.item_id} -> listed #{format_soul(price_in_soul)} SOUL"
+          }
+        })
 
-          {:error, reason} ->
-            explore_with_reason("TRADE sell failed for #{item.name}: #{reason}")
-        end
+        %{summary: "TRADE sell #{item.name}##{item.item_id} -> listed #{format_soul(price_in_soul)} SOUL (settling...)", status: :alive}
 
       [] ->
         %{summary: "No valid trade was available.", status: :alive}
@@ -370,9 +380,6 @@ defmodule AFW.Agent.Loop do
   end
 
   defp explore_with_reason(reason) do
-    %{
-      summary: "#{reason}. Explored the nearby roads instead.",
-      status: :traveling
-    }
+    %{summary: "#{reason}. Explored the nearby roads instead.", status: :traveling}
   end
 end

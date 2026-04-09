@@ -1,36 +1,31 @@
 defmodule AFW.World.Combat do
-  @moduledoc "On-chain combat integration through CombatResolver."
+  @moduledoc "Combat helpers for optimistic simulation plus eventual on-chain settlement."
 
-  alias AFW.Chain.Client
-  alias AFW.Combat.Stats
-
-  def resolve(context, event) do
+  def simulate(context, event) do
     monster_id =
       get_in(event.metadata || %{}, [:monster_id]) ||
         get_in(event.metadata || %{}, ["monster_id"]) || 1
 
-    Stats.record_attempt()
+    agent_attack = get_in(context, [:agent, "stats", "attack"]) || 10
+    agent_hp = get_in(context, [:agent, "stats", "hp"]) || 1
+    monster_hp = get_in(event.metadata || %{}, [:hp]) || get_in(event.metadata || %{}, ["hp"]) || 1
+    reward = get_in(event.metadata || %{}, [:soul_balance]) || get_in(event.metadata || %{}, ["soul_balance"]) || 0
 
-    case Client.resolve_combat(context.agent["agentId"], monster_id) do
-      {:ok, payload} ->
-        Stats.record_success()
+    win? = agent_attack * 5 >= monster_hp and agent_hp > 0
+    soul_delta = if win?, do: reward, else: -div(reward, 2)
 
-        %{
-          summary: "FIGHT #{event.target || "monster"}##{monster_id} -> resolved on-chain (#{payload.tx_hash})",
-          status: :alive,
-          tx_hash: payload.tx_hash,
-          success?: true
-        }
-
-      {:error, reason} ->
-        Stats.record_failure()
-
-        %{
-          summary: "FIGHT failed for monster##{monster_id}: #{reason}",
-          status: :alive,
-          success?: false,
-          error: reason
-        }
-    end
+    %{
+      summary:
+        if(
+          win?,
+          do: "FIGHT #{event.target || "monster"}##{monster_id} -> WON +#{format_soul(reward)} SOUL",
+          else: "FIGHT #{event.target || "monster"}##{monster_id} -> LOST #{format_soul(abs(soul_delta))} SOUL"
+        ),
+      optimistic_soul_delta: soul_delta,
+      state_changes: [],
+      success?: win?
+    }
   end
+
+  defp format_soul(amount), do: Float.round(amount / 1_000_000_000_000_000_000, 2)
 end

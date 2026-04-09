@@ -9,6 +9,7 @@ defmodule AFW.Application do
       AFWWeb.Endpoint,
       {AFW.Chain.Cache, []},
       {AFW.Chain.Writer, Application.get_all_env(:afw)},
+      {AFW.Settlement.Hub, []},
       {AFW.Combat.Stats, []},
       {AFW.Simulation.Metrics, []},
       {AFW.Agent.Supervisor, []},
