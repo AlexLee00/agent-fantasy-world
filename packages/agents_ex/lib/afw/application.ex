@@ -13,6 +13,7 @@ defmodule AFW.Application do
       {AFW.Combat.Stats, []},
       {AFW.Simulation.Metrics, []},
       {AFW.Agent.Supervisor, []},
+      {AFW.Contribution.Agent, []},
       {AFW.Guardian.Monitor, []}
     ]
 

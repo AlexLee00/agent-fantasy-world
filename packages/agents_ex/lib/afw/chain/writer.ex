@@ -39,6 +39,14 @@ defmodule AFW.Chain.Writer do
 
   def update_agent_state(agent_id, stats, exp_gained, zone_id, status_id),
     do: GenServer.call(__MODULE__, {:update_agent_state, agent_id, stats, exp_gained, zone_id, status_id}, 120_000)
+  def distribute_node_rewards(addresses, amounts, epoch),
+    do: GenServer.call(__MODULE__, {:distribute_node_rewards, addresses, amounts, epoch}, 120_000)
+  def distribute_bounty_rewards(addresses, amounts, epoch),
+    do: GenServer.call(__MODULE__, {:distribute_bounty_rewards, addresses, amounts, epoch}, 120_000)
+  def propose_governance_action(proposal_type, title, description, target, call_data),
+    do: GenServer.call(__MODULE__, {:propose_governance_action, proposal_type, title, description, target, call_data}, 120_000)
+  def trigger_event_treasury_check,
+    do: GenServer.call(__MODULE__, :trigger_event_treasury_check, 120_000)
 
   def register_item_type(name, category, tier, min_stat, max_stat, tradeable) do
     GenServer.call(
@@ -164,6 +172,42 @@ defmodule AFW.Chain.Writer do
           [agent_id, encode_stats(stats), exp_gained, zone_id, status_id],
           state
         )
+      end)
+
+    {:reply, reply, next_state}
+  end
+
+  def handle_call({:distribute_node_rewards, addresses, amounts, epoch}, _from, state) do
+    {reply, next_state} =
+      attempt_write(state, fn state ->
+        submit_contract_transaction(:node_reward_pool, "distributeRewards", [addresses, amounts, epoch], state)
+      end)
+
+    {:reply, reply, next_state}
+  end
+
+  def handle_call({:distribute_bounty_rewards, addresses, amounts, epoch}, _from, state) do
+    {reply, next_state} =
+      attempt_write(state, fn state ->
+        submit_contract_transaction(:bounty_pool, "distributeRewards", [addresses, amounts, epoch], state)
+      end)
+
+    {:reply, reply, next_state}
+  end
+
+  def handle_call({:propose_governance_action, proposal_type, title, description, target, call_data}, _from, state) do
+    {reply, next_state} =
+      attempt_write(state, fn state ->
+        submit_contract_transaction(:governance_dao, "propose", [proposal_type, title, description, target, call_data], state)
+      end)
+
+    {:reply, reply, next_state}
+  end
+
+  def handle_call(:trigger_event_treasury_check, _from, state) do
+    {reply, next_state} =
+      attempt_write(state, fn state ->
+        submit_contract_transaction(:event_treasury, "checkAndTriggerEvent", [], state)
       end)
 
     {:reply, reply, next_state}

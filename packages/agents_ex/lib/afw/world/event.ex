@@ -6,8 +6,33 @@ defmodule AFW.World.Event do
   def generate(context, _tick) do
     hp = get_in(context, [:agent, "stats", "hp"]) || 0
     max_hp = max(get_in(context, [:agent, "stats", "maxHp"]) || 1, 1)
+    treasury_balance = context[:treasury_balance] || 0
 
     cond do
+      treasury_balance >= 10_000 * 1_000_000_000_000_000_000 ->
+        %__MODULE__{
+          type: :world_boss,
+          title: "World Boss awakened",
+          summary: "EventTreasury has enough SOUL to unleash a world boss.",
+          target: "world boss"
+        }
+
+      treasury_balance >= 5_000 * 1_000_000_000_000_000_000 ->
+        %__MODULE__{
+          type: :zone_event,
+          title: "Zone boss surge",
+          summary: "EventTreasury can empower a zone event right now.",
+          target: "zone boss"
+        }
+
+      treasury_balance >= 1_000 * 1_000_000_000_000_000_000 ->
+        %__MODULE__{
+          type: :mini_event,
+          title: "Rare spawn surge",
+          summary: "EventTreasury can fund a mini event with boosted rewards.",
+          target: "rare monster"
+        }
+
       hp / max_hp < 0.3 ->
         %__MODULE__{
           type: :survival,

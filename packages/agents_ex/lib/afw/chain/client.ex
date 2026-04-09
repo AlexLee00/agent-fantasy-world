@@ -28,6 +28,8 @@ defmodule AFW.Chain.Client do
   def get_monsters_in_zone(zone_id), do: Reader.get_monsters_in_zone(zone_id)
   def get_npcs_in_zone(zone_id), do: Reader.get_npcs_in_zone(zone_id)
   def get_agent_items(address), do: Reader.get_agent_items(address)
+  def get_node_stats, do: Reader.get_node_stats()
+  def get_creator_stats, do: Reader.get_creator_stats()
   def get_soul_balance(address), do: Reader.get_soul_balance(address)
   def get_npc_price(npc_id, item_id), do: Reader.get_npc_price(npc_id, item_id)
   def find_item_type_id(name), do: Reader.find_item_type_id(name)
@@ -43,6 +45,11 @@ defmodule AFW.Chain.Client do
   def fill_market_order(order_id), do: Writer.fill_market_order(order_id)
   def update_agent_state(agent_id, stats, exp_gained, zone_id, status_id),
     do: Writer.update_agent_state(agent_id, stats, exp_gained, zone_id, status_id)
+  def distribute_node_rewards(addresses, amounts, epoch), do: Writer.distribute_node_rewards(addresses, amounts, epoch)
+  def distribute_bounty_rewards(addresses, amounts, epoch), do: Writer.distribute_bounty_rewards(addresses, amounts, epoch)
+  def propose_governance_action(proposal_type, title, description, target, call_data),
+    do: Writer.propose_governance_action(proposal_type, title, description, target, call_data)
+  def trigger_event_treasury_check, do: Writer.trigger_event_treasury_check()
 
   def register_item_type(name, category, tier, min_stat, max_stat, tradeable) do
     Writer.register_item_type(name, category, tier, min_stat, max_stat, tradeable)

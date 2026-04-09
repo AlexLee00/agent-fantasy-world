@@ -13,6 +13,8 @@ defmodule AFWWeb.DashboardLive do
        agents: [],
        combat: AFW.Combat.Stats.snapshot(),
        guardian: %{},
+       guardian_alerts: [],
+       world_event: nil,
        title: "AFW Dashboard"
      )}
   end
@@ -38,11 +40,17 @@ defmodule AFWWeb.DashboardLive do
   end
 
   def handle_info({:guardian_metrics, payload}, socket) do
-    {:noreply, assign(socket, guardian: payload)}
+    alerts = build_alerts(payload)
+    {:noreply, assign(socket, guardian: payload, guardian_alerts: alerts)}
   end
 
   def handle_info({:guardian_dashboard, payload}, socket) do
-    {:noreply, assign(socket, guardian: payload)}
+    alerts = build_alerts(payload)
+    {:noreply, assign(socket, guardian: payload, guardian_alerts: alerts)}
+  end
+
+  def handle_info({:world_event_triggered, payload}, socket) do
+    {:noreply, assign(socket, world_event: payload)}
   end
 
   def handle_info({:combat_stats, payload}, socket) do
@@ -56,12 +64,45 @@ defmodule AFWWeb.DashboardLive do
       <h1>Agent Fantasy World</h1>
       <p>Primary Elixir/OTP runtime with GenServer agents, Guardian, and LiveView telemetry.</p>
 
+      <div :if={@world_event} style="padding:12px;margin-bottom:16px;border-radius:14px;background:#fff2dc;border:1px solid #e8bb6b;">
+        <strong>World Event</strong>
+        <div><%= @world_event.type || @world_event[:type] %> is now active.</div>
+      </div>
+
+      <div :for={alert <- @guardian_alerts} style="padding:12px;margin-bottom:12px;border-radius:14px;background:#ffe9e9;border:1px solid #ffb3b3;">
+        <strong>Guardian <%= String.upcase(alert.severity) %></strong>
+        <div><%= alert.message %></div>
+      </div>
+
+      <h2>Economy</h2>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;">
+        <div style="padding:12px;border-radius:14px;background:#f6fff7;border:1px solid #d9ead7;">
+          <strong>SOUL Supply</strong>
+          <div>Minted: <%= get_in(@guardian, [:economy, :totalSOULMinted]) || 0 %></div>
+          <div>Burned: <%= get_in(@guardian, [:economy, :totalSOULBurned]) || 0 %></div>
+          <div>Inflation: <%= pct(get_in(@guardian, [:economy, :inflationRate]) || 0) %></div>
+        </div>
+        <div style="padding:12px;border-radius:14px;background:#f5f8ff;border:1px solid #d8def8;">
+          <strong>Distribution</strong>
+          <div>Gini: <%= get_in(@guardian, [:agents, :wealthGini]) || 0 %></div>
+          <div>Queued settlements: <%= @guardian[:queuedEvents] || 0 %></div>
+          <div>Proposals: <%= length(@guardian[:balanceProposals] || []) %></div>
+        </div>
+        <div style="padding:12px;border-radius:14px;background:#fffaf1;border:1px solid #eadfca;">
+          <strong>EventTreasury</strong>
+          <div>Balance: <%= get_in(@guardian, [:treasury, :balance]) || 0 %></div>
+          <div>Next: <%= get_in(@guardian, [:treasury, :nextEvent]) || "MINI" %></div>
+          <div>Remaining: <%= get_in(@guardian, [:treasury, :remainingToNext]) || 0 %></div>
+        </div>
+      </div>
+
       <h2>Agents</h2>
       <div :for={agent <- @agents} style="padding:12px;margin-bottom:10px;border-radius:14px;background:#fffaf1;border:1px solid #ddd;">
         <strong><%= agent.label || "Agent" %> #<%= agent.agent_id %></strong>
         <div>Tick: <%= agent.tick_count %> · Last action: <%= (agent.last_action || %{})[:action] || "idle" %></div>
         <div :if={agent[:settlement]}>
           SOUL: <%= agent.settlement.confirmedSoul %> (confirmed) + <%= agent.settlement.pendingSoul %> (pending) = <%= agent.settlement.displaySoul %>
+          · <%= settlement_status(agent.settlement.recentEvents || []) %>
         </div>
       </div>
 
@@ -74,6 +115,10 @@ defmodule AFWWeb.DashboardLive do
           · Failures: <%= @combat[:fight_failures] || @combat["fight_failures"] || 0 %>
           · Rate: <%= ((@combat[:success_rate] || @combat["success_rate"] || 0.0) * 100) |> Float.round(2) %>%
         </div>
+      </div>
+      <div :if={@guardian[:balanceProposals] && @guardian[:balanceProposals] != []} style="padding:12px;margin-bottom:16px;border-radius:14px;background:#f9f4ff;border:1px solid #ddcef2;">
+        <strong>Balance Proposals</strong>
+        <div :for={proposal <- @guardian[:balanceProposals]}><%= proposal %></div>
       </div>
       <pre><%= Jason.encode_to_iodata!(@guardian, pretty: true) |> IO.iodata_to_binary() %></pre>
     </section>
@@ -94,4 +139,34 @@ defmodule AFWWeb.DashboardLive do
       end
     end)
   end
+
+  defp build_alerts(payload) do
+    anomalies = payload[:anomalies] || []
+    severity = payload[:severity] || "low"
+
+    if anomalies == [] and severity == "low" do
+      []
+    else
+      [
+        %{
+          severity: severity,
+          message:
+            "#{length(anomalies)} anomaly signals detected. Proposed action: #{payload[:proposedAction] || "OBSERVE"}."
+        }
+      ]
+    end
+  end
+
+  defp pct(value) when is_number(value), do: "#{Float.round(value * 100, 2)}%"
+  defp pct(_), do: "0.0%"
+
+  defp settlement_status([latest | _]) do
+    case latest[:status] do
+      :confirmed -> "✓ confirmed"
+      :failed -> "✗ failed"
+      _ -> "⏳ settling"
+    end
+  end
+
+  defp settlement_status(_), do: "✓ confirmed"
 end

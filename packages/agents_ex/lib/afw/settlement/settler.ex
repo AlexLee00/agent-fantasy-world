@@ -41,6 +41,28 @@ defmodule AFW.Settlement.Settler do
     Writer.fill_market_order(data.order_id)
   end
 
+  defp execute(%{type: :distribution_rewards, data: %{pool_key: :node_reward_pool} = data}) do
+    Writer.distribute_node_rewards(data.addresses, data.amounts, data.epoch)
+  end
+
+  defp execute(%{type: :distribution_rewards, data: %{pool_key: :bounty_pool} = data}) do
+    Writer.distribute_bounty_rewards(data.addresses, data.amounts, data.epoch)
+  end
+
+  defp execute(%{type: :governance_action, data: data}) do
+    Writer.propose_governance_action(
+      data.proposal_type,
+      data.title,
+      data.description,
+      data.target_contract,
+      data.call_data
+    )
+  end
+
+  defp execute(%{type: :world_event}) do
+    Writer.trigger_event_treasury_check()
+  end
+
   defp execute(%{type: :agent_created, data: data}) do
     Writer.create_agent(data.class_id, data.personality)
   end

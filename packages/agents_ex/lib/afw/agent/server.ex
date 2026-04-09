@@ -27,7 +27,7 @@ defmodule AFW.Agent.Server do
       class_id: opts[:class_id],
       personality: opts[:personality],
       tick_interval: opts[:tick_interval] || Application.fetch_env!(:afw, :tick_interval_ms),
-      brain_module: opts[:brain_module] || AFW.Brain.ClaudeCode,
+      brain_module: opts[:brain_module] || AFW.Brain.Interface.provider_module(),
       zone_id: 1,
       level: 1,
       experience: 0,

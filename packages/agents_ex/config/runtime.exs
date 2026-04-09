@@ -23,6 +23,10 @@ contract = fn key ->
     raise "Missing contract address for #{key}"
 end
 
+optional_contract = fn key ->
+  System.get_env("#{String.upcase(key)}_ADDRESS") || Map.get(deployments, key)
+end
+
 config :afw,
   rpc_url: System.get_env("RPC_URL", "https://base-sepolia-rpc.publicnode.com"),
   rpc_urls: [
@@ -31,7 +35,12 @@ config :afw,
     System.get_env("RPC_URL_FALLBACK_2", "https://base-sepolia.blockpi.network/v1/rpc/public")
   ],
   private_key: System.get_env("PRIVATE_KEY", ""),
+  github_token: System.get_env("GITHUB_TOKEN", ""),
+  github_repo: System.get_env("GITHUB_REPO", "AlexLee00/agent-fantasy-world"),
+  brain_tier: String.to_integer(System.get_env("BRAIN_TIER", "1")),
   brain_provider: System.get_env("BRAIN_PROVIDER", "claude-code"),
+  afw_basic_api_key: System.get_env("AFW_BASIC_API_KEY", ""),
+  openclaw_host: System.get_env("OPENCLAW_HOST", "http://localhost:18789"),
   claude_code_path: System.get_env("CLAUDE_CODE_PATH", "/opt/homebrew/bin/claude"),
   claude_code_model: System.get_env("CLAUDE_CODE_MODEL", "sonnet"),
   claude_code_timeout_ms: String.to_integer(System.get_env("CLAUDE_CODE_TIMEOUT_MS", "45000")),
@@ -60,7 +69,13 @@ config :afw,
     npc_registry: contract.("NPCRegistry"),
     event_treasury: contract.("EventTreasury"),
     combat_resolver: contract.("CombatResolver"),
-    marketplace: contract.("Marketplace")
+    marketplace: contract.("Marketplace"),
+    afw_distributor: optional_contract.("AFWDistributor"),
+    team_vesting_wallet: optional_contract.("TeamVestingWallet"),
+    advisor_vesting_wallet: optional_contract.("AdvisorVestingWallet"),
+    node_reward_pool: optional_contract.("NodeRewardPool"),
+    bounty_pool: optional_contract.("BountyPool"),
+    ecosystem_treasury: optional_contract.("EcosystemTreasury")
   },
   default_agents: [
     %{label: "Warrior", class_id: 1, personality: [90, 10, 30, 80, 50]},

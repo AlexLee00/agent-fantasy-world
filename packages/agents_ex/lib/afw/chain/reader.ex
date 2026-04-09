@@ -238,6 +238,69 @@ defmodule AFW.Chain.Reader do
     }
   end
 
+  def get_node_stats do
+    total = call_uint(:node_registry, "getActiveNodeCount", [])
+
+    if total == 0 do
+      []
+    else
+      0..(total - 1)
+      |> Enum.map(fn index ->
+        address = call_contract(:node_registry, "activeNodes", [index]) |> List.first() |> encode_address()
+        [operator, tier, _spec, _staked, _registered_at, _uptime_blocks, pending_reward, _total_slashings, active, endpoint] =
+          call_contract(:node_registry, "nodes", [address])
+
+        %{
+          address: encode_address(operator),
+          tier: tier,
+          pending_reward: pending_reward,
+          uptime_pct: 100,
+          quality: 100,
+          inference_count: max(pending_reward |> div(1_000_000_000_000_000_000), 1),
+          active: active,
+          endpoint: endpoint
+        }
+      end)
+    end
+  rescue
+    _ -> []
+  end
+
+  def get_creator_stats do
+    monster_total = call_uint(:monster_registry, "totalMonsterTypes", [])
+    quest_total = call_uint(:quest_engine, "totalQuests", [])
+
+    monster_creators =
+      Enum.map(1..monster_total, fn type_id ->
+        [_name, _danger, _min_hp, _max_hp, _min_atk, _max_atk, _min_def, _max_def, _min_soul, _max_soul, creator, active] =
+          call_contract(:monster_registry, "monsterTypes", [type_id])
+
+        %{address: encode_address(creator), content_uses: if(active, do: 20, else: 0)}
+      end)
+
+    quest_creators =
+      Enum.map(1..quest_total, fn quest_id ->
+        [_quest_id, _name, _description, _zone_id, _difficulty, _condition, reward, creator, _bps, active, _created_at] =
+          call_contract(:quest_engine, "quests", [quest_id])
+
+        soul_amount =
+          case reward do
+            {amount, _, _, _} -> amount
+            _ -> 0
+          end
+
+        %{address: encode_address(creator), content_uses: if(active, do: max(div(soul_amount, 10 ** 18), 1), else: 0)}
+      end)
+
+    (monster_creators ++ quest_creators)
+    |> Enum.group_by(& &1.address)
+    |> Enum.map(fn {address, rows} ->
+      %{address: address, content_uses: Enum.reduce(rows, 0, fn row, acc -> acc + row.content_uses end)}
+    end)
+  rescue
+    _ -> []
+  end
+
   def account_address do
     private_key = Application.fetch_env!(:afw, :private_key)
     derive_address!(decode_hex_key!(private_key))
