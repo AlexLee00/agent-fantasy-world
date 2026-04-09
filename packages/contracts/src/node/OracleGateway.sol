@@ -1,36 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-/**
- * @title OracleGateway — 오프체인 AI 추론 결과를 온체인에 안전하게 기록
- * @notice 노드들이 결과 해시를 제출하고 2/3 컨센서스 달성 시 실행
- *
- * 흐름:
- *   Node → submitResult(agentId, resultHash, encodedResult)
- *   2/3 이상 일치 → _executeResult() → AgentRegistry 업데이트
- *   30블록 내 컨센서스 미달 → handleTimeout()
- */
-contract OracleGateway is AccessControl {
-    bytes32 public constant NODE_ROLE = keccak256("NODE_ROLE");
-
-    uint8   public constant CONSENSUS_THRESHOLD = 67; // 2/3 이상 (%)
-    uint256 public constant SUBMISSION_WINDOW   = 30; // 블록 수
+contract OracleGateway is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
+    uint8 public constant CONSENSUS_THRESHOLD = 67;
+    uint256 public constant SUBMISSION_WINDOW = 30;
 
     struct PendingAction {
         uint256 agentId;
         uint256 submittedBlock;
-        uint8   totalSubmissions;
-        uint8   consensusCount;
+        uint8 totalSubmissions;
+        uint8 consensusCount;
         bytes32 winningHash;
-        bool    executed;
+        bool executed;
     }
 
-    mapping(uint256 => PendingAction)              public pending;        // agentId → pending
-    mapping(uint256 => mapping(address => bytes32)) public nodeSubmission; // agentId → node → hash
-    mapping(uint256 => mapping(bytes32 => uint8))   public hashVotes;      // agentId → hash → votes
-    mapping(bytes32 => bytes)                       public resultData;     // hash → encodedResult
+    mapping(uint256 => PendingAction) public pending;
+    mapping(uint256 => mapping(address => bytes32)) public nodeSubmission;
+    mapping(uint256 => mapping(bytes32 => uint8)) public hashVotes;
+    mapping(bytes32 => bytes) public resultData;
 
     uint256 public totalNodes;
     mapping(address => bool) public registeredNodes;
@@ -44,9 +35,15 @@ contract OracleGateway is AccessControl {
     event TimeoutHandled(uint256 indexed agentId, bool executed);
     event NodeRegistered(address indexed node);
 
-    constructor(address _agentRegistry) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address admin, address _agentRegistry) external initializer {
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
         agentRegistry = _agentRegistry;
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     modifier onlyNode() {
@@ -54,86 +51,82 @@ contract OracleGateway is AccessControl {
         _;
     }
 
-    // ─── 노드 결과 제출 ───────────────────────────────────────────
     function submitResult(
-        uint256 _agentId,
-        bytes32 _resultHash,
-        bytes calldata _encodedResult
+        uint256 agentId,
+        bytes32 resultHash,
+        bytes calldata encodedResult
     ) external onlyNode {
-        require(nodeSubmission[_agentId][msg.sender] == bytes32(0),
-            "OracleGateway: already submitted");
+        require(nodeSubmission[agentId][msg.sender] == bytes32(0), "OracleGateway: already submitted");
 
-        PendingAction storage p = pending[_agentId];
-        if (p.submittedBlock == 0) {
-            p.agentId        = _agentId;
-            p.submittedBlock = block.number;
+        PendingAction storage action = pending[agentId];
+        if (action.submittedBlock == 0) {
+            action.agentId = agentId;
+            action.submittedBlock = block.number;
         }
-        require(!p.executed, "OracleGateway: already executed");
 
-        nodeSubmission[_agentId][msg.sender] = _resultHash;
-        resultData[_resultHash]              = _encodedResult;
-        hashVotes[_agentId][_resultHash]++;
-        p.totalSubmissions++;
+        require(!action.executed, "OracleGateway: already executed");
 
-        emit ResultSubmitted(_agentId, msg.sender, _resultHash);
+        nodeSubmission[agentId][msg.sender] = resultHash;
+        resultData[resultHash] = encodedResult;
+        hashVotes[agentId][resultHash]++;
+        action.totalSubmissions++;
 
-        // 컨센서스 체크
-        uint8 votes = hashVotes[_agentId][_resultHash];
-        uint8 pct   = totalNodes > 0 ? uint8(uint256(votes) * 100 / totalNodes) : 0;
+        emit ResultSubmitted(agentId, msg.sender, resultHash);
 
+        uint8 votes = hashVotes[agentId][resultHash];
+        uint8 pct = totalNodes > 0 ? uint8(uint256(votes) * 100 / totalNodes) : 0;
         if (pct >= CONSENSUS_THRESHOLD) {
-            p.winningHash    = _resultHash;
-            p.consensusCount = votes;
-            _executeResult(_agentId, _resultHash);
+            action.winningHash = resultHash;
+            action.consensusCount = votes;
+            _executeResult(agentId, resultHash);
         }
     }
 
-    // ─── 컨센서스 달성 시 실행 ────────────────────────────────────
-    function _executeResult(uint256 _agentId, bytes32 _resultHash) internal {
-        PendingAction storage p = pending[_agentId];
-        p.executed = true;
+    function handleTimeout(uint256 agentId) external {
+        PendingAction storage action = pending[agentId];
+        require(!action.executed, "OracleGateway: already executed");
+        require(block.number > action.submittedBlock + SUBMISSION_WINDOW, "OracleGateway: window not expired");
 
-        bytes memory data = resultData[_resultHash];
-        // TODO: AgentRegistry.updateAgentState() decode & call
-        // TODO: QuestEngine.updateProgress() 호출
-        // TODO: 참여 노드 보상 기록
-
-        emit ConsensusReached(_agentId, _resultHash);
-    }
-
-    // ─── 타임아웃 처리 ────────────────────────────────────────────
-    function handleTimeout(uint256 _agentId) external {
-        PendingAction storage p = pending[_agentId];
-        require(!p.executed, "OracleGateway: already executed");
-        require(block.number > p.submittedBlock + SUBMISSION_WINDOW,
-            "OracleGateway: window not expired");
-
-        // 과반수라도 있으면 실행
-        if (p.winningHash != bytes32(0)) {
-            _executeResult(_agentId, p.winningHash);
-            emit TimeoutHandled(_agentId, true);
+        if (action.winningHash != bytes32(0)) {
+            _executeResult(agentId, action.winningHash);
+            emit TimeoutHandled(agentId, true);
         } else {
-            // 컨센서스 실패 — 이전 상태 유지, 패널티
-            p.executed = true;
-            emit TimeoutHandled(_agentId, false);
+            action.executed = true;
+            emit TimeoutHandled(agentId, false);
         }
     }
 
-    // ─── 노드 등록/제거 ─────────────────────────────────────────
-    function registerNode(address _node) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(!registeredNodes[_node], "OracleGateway: already registered");
-        registeredNodes[_node] = true;
+    function registerNode(address node) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(!registeredNodes[node], "OracleGateway: already registered");
+        registeredNodes[node] = true;
         totalNodes++;
-        emit NodeRegistered(_node);
+        emit NodeRegistered(node);
     }
 
-    function removeNode(address _node) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(registeredNodes[_node], "OracleGateway: not registered");
-        registeredNodes[_node] = false;
+    function removeNode(address node) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(registeredNodes[node], "OracleGateway: not registered");
+        registeredNodes[node] = false;
         if (totalNodes > 0) totalNodes--;
     }
 
-    function setAgentRegistry(address _addr) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        agentRegistry = _addr;
+    function setAgentRegistry(address addr) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        agentRegistry = addr;
     }
+
+    function setQuestEngine(address addr) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        questEngine = addr;
+    }
+
+    function setNodeRegistry(address addr) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        nodeRegistry = addr;
+    }
+
+    function _executeResult(uint256 agentId, bytes32 resultHash) internal {
+        pending[agentId].executed = true;
+        emit ConsensusReached(agentId, resultHash);
+    }
+
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    uint256[50] private __gap;
 }

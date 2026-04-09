@@ -1,0 +1,126 @@
+[
+  {
+    "inputs": [],
+    "name": "ORACLE_ROLE",
+    "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "role", "type": "bytes32" },
+      { "internalType": "address", "name": "account", "type": "address" }
+    ],
+    "name": "hasRole",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "role", "type": "bytes32" },
+      { "internalType": "address", "name": "account", "type": "address" }
+    ],
+    "name": "grantRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "agentId", "type": "uint256" },
+      { "indexed": true, "internalType": "address", "name": "observer", "type": "address" },
+      { "indexed": false, "internalType": "uint8", "name": "agentClass", "type": "uint8" }
+    ],
+    "name": "AgentCreated",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint8", "name": "_class", "type": "uint8" },
+      { "internalType": "uint8[5]", "name": "_personality", "type": "uint8[5]" }
+    ],
+    "name": "createAgent",
+    "outputs": [{ "internalType": "uint256", "name": "agentId", "type": "uint256" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "_agentId", "type": "uint256" }],
+    "name": "getAgent",
+    "outputs": [
+      {
+        "components": [
+          { "internalType": "uint256", "name": "agentId", "type": "uint256" },
+          { "internalType": "address", "name": "observer", "type": "address" },
+          { "internalType": "uint8", "name": "agentClass", "type": "uint8" },
+          { "internalType": "uint8", "name": "status", "type": "uint8" },
+          { "internalType": "uint8", "name": "level", "type": "uint8" },
+          { "internalType": "uint64", "name": "experience", "type": "uint64" },
+          { "internalType": "uint256", "name": "zoneId", "type": "uint256" },
+          {
+            "components": [
+              { "internalType": "uint8", "name": "bravery", "type": "uint8" },
+              { "internalType": "uint8", "name": "greed", "type": "uint8" },
+              { "internalType": "uint8", "name": "sociability", "type": "uint8" },
+              { "internalType": "uint8", "name": "curiosity", "type": "uint8" },
+              { "internalType": "uint8", "name": "loyalty", "type": "uint8" }
+            ],
+            "internalType": "tuple",
+            "name": "personality",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              { "internalType": "uint32", "name": "hp", "type": "uint32" },
+              { "internalType": "uint32", "name": "maxHp", "type": "uint32" },
+              { "internalType": "uint32", "name": "mp", "type": "uint32" },
+              { "internalType": "uint32", "name": "maxMp", "type": "uint32" },
+              { "internalType": "uint32", "name": "attack", "type": "uint32" },
+              { "internalType": "uint32", "name": "defense", "type": "uint32" },
+              { "internalType": "uint32", "name": "speed", "type": "uint32" }
+            ],
+            "internalType": "tuple",
+            "name": "stats",
+            "type": "tuple"
+          },
+          { "internalType": "uint256", "name": "createdAt", "type": "uint256" },
+          { "internalType": "uint256", "name": "lastActionBlock", "type": "uint256" },
+          { "internalType": "bytes32", "name": "personalityHash", "type": "bytes32" }
+        ],
+        "internalType": "tuple",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "_agentId", "type": "uint256" },
+      {
+        "components": [
+          { "internalType": "uint32", "name": "hp", "type": "uint32" },
+          { "internalType": "uint32", "name": "maxHp", "type": "uint32" },
+          { "internalType": "uint32", "name": "mp", "type": "uint32" },
+          { "internalType": "uint32", "name": "maxMp", "type": "uint32" },
+          { "internalType": "uint32", "name": "attack", "type": "uint32" },
+          { "internalType": "uint32", "name": "defense", "type": "uint32" },
+          { "internalType": "uint32", "name": "speed", "type": "uint32" }
+        ],
+        "internalType": "tuple",
+        "name": "_newStats",
+        "type": "tuple"
+      },
+      { "internalType": "uint32", "name": "_expGained", "type": "uint32" },
+      { "internalType": "uint256", "name": "_newZoneId", "type": "uint256" },
+      { "internalType": "uint8", "name": "_newStatus", "type": "uint8" }
+    ],
+    "name": "updateAgentState",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

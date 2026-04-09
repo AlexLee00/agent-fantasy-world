@@ -1,61 +1,83 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "../interfaces/IFreezeAuthority.sol";
 
 /**
- * @title SOULToken — AFW 인게임 통화
- * @notice 공급량 동적 (게임 활동에 따라 발행/소각)
- *         발행: 퀘스트완료, 몬스터처치, 탐험보상
- *         소각: 아이템구매, 스킬강화, 마켓수수료, 부활비용
+ * @title SOULToken — AFW in-game currency
+ * @notice Dynamic supply driven by gameplay mint and burn flows. No daily mint limit exists.
  */
-contract SOULToken is ERC20, AccessControl {
+contract SOULToken is Initializable, ERC20Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     uint256 public totalMinted;
     uint256 public totalBurned;
-
-    // 일일 발행 한도 (인플레이션 제어)
-    uint256 public dailyMintLimit;
-    mapping(uint256 => uint256) public dailyMinted; // day => amount
+    address public governanceDAO;
 
     event SOULMinted(address indexed to, uint256 amount, string reason, uint256 refId);
     event SOULBurned(address indexed from, uint256 amount, string reason);
+    event GovernanceDAOUpdated(address indexed governanceDAO);
 
-    constructor(uint256 _dailyMintLimit) ERC20("SOUL Token", "SOUL") {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        dailyMintLimit = _dailyMintLimit;
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address admin) external initializer {
+        __ERC20_init("SOUL Token", "SOUL");
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 
     function mint(address to, uint256 amount, string calldata reason, uint256 refId)
-        external onlyRole(MINTER_ROLE)
+        external
+        onlyRole(MINTER_ROLE)
     {
-        uint256 today = block.timestamp / 1 days;
-        require(dailyMinted[today] + amount <= dailyMintLimit, "Daily mint limit exceeded");
-        dailyMinted[today] += amount;
         totalMinted += amount;
         _mint(to, amount);
         emit SOULMinted(to, amount, reason, refId);
     }
 
     function burn(address from, uint256 amount, string calldata reason)
-        external onlyRole(BURNER_ROLE)
+        external
+        onlyRole(BURNER_ROLE)
     {
         _burn(from, amount);
         totalBurned += amount;
         emit SOULBurned(from, amount, reason);
     }
 
-    function setDailyMintLimit(uint256 _limit) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        dailyMintLimit = _limit;
+    function setGovernanceDAO(address dao) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        governanceDAO = dao;
+        emit GovernanceDAOUpdated(dao);
     }
 
-    /// @notice 발행/소각 비율 (basis points, 음수 = 디플레이션)
     function getNetInflationBps() external view returns (int256) {
         uint256 supply = totalSupply();
         if (supply == 0) return 0;
         return int256(totalMinted * 10000 / supply) - int256(totalBurned * 10000 / supply);
     }
+
+    function _update(address from, address to, uint256 value) internal override {
+        _enforceWalletNotFrozen(from);
+        _enforceWalletNotFrozen(to);
+        super._update(from, to, value);
+    }
+
+    function _enforceWalletNotFrozen(address account) internal view {
+        if (account == address(0) || governanceDAO == address(0)) {
+            return;
+        }
+
+        require(!IFreezeAuthority(governanceDAO).isWalletFrozen(account), "SOULToken: wallet frozen");
+    }
+
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    uint256[50] private __gap;
 }

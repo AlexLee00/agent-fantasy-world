@@ -59,6 +59,7 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+packages/agents/.oauth/
 
 # ─── 4. IDE & OS ────────────────────────────────────────────
 .DS_Store
@@ -80,3 +81,12 @@ lcov.info
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Elixir
+_build/
+deps/
+.elixir_ls/
+*.ez
+erl_crash.dump
+# Guardian logs
+packages/agents/logs/

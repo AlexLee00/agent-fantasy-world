@@ -1,86 +1,109 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "../interfaces/ISoulToken.sol";
 
 /**
- * @title EconomyEngine — $SOUL 발행/소각 통합 게이트웨이
- * @notice 모든 발행/소각은 이 컨트랙트를 통해서만 처리
- *         인플레이션 자동 모니터링 + 일일 한도 강제
+ * @title EconomyEngine — unified $SOUL mint and burn gateway
+ * @notice Gameplay-driven supply model with no daily mint cap.
  */
-contract EconomyEngine is AccessControl {
-    bytes32 public constant QUEST_ROLE   = keccak256("QUEST_ROLE");
-    bytes32 public constant COMBAT_ROLE  = keccak256("COMBAT_ROLE");
-    bytes32 public constant MARKET_ROLE  = keccak256("MARKET_ROLE");
+contract EconomyEngine is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
+    bytes32 public constant QUEST_ROLE = keccak256("QUEST_ROLE");
+    bytes32 public constant COMBAT_ROLE = keccak256("COMBAT_ROLE");
+    bytes32 public constant MARKET_ROLE = keccak256("MARKET_ROLE");
+
+    uint256 public constant DEATH_LOOT_BPS = 3000;
+    uint256 public constant MONSTER_LOOT_BPS = 1500;
+    uint256 public constant TREASURY_LOOT_BPS = 1500;
 
     address public soulToken;
+    address public eventTreasury;
 
-    uint256 public dailyMintLimit      = 1_000_000 * 10**18; // 일일 100만 SOUL
-    uint256 public marketFeeBurnBps    = 200;  // 마켓 수수료 2% 소각
-    uint256 public revivalCostSoul     = 500 * 10**18; // 부활 비용 500 SOUL
+    uint256 public marketFeeBurnBps;
+    uint256 public deathXpLossBps;
 
-    mapping(uint256 => uint256) public dailyMinted; // day → amount
+    mapping(uint256 => uint256) public dailyMinted;
     mapping(uint256 => uint256) public dailyBurned;
 
     uint256 public totalMinted;
     uint256 public totalBurned;
 
-    event SOULMinted(address indexed to,   uint256 amount, string reason, uint256 refId);
+    event SOULMinted(address indexed to, uint256 amount, string reason, uint256 refId);
     event SOULBurned(address indexed from, uint256 amount, string reason);
-    event DailyLimitUpdated(uint256 newLimit);
+    event EventTreasuryUpdated(address indexed eventTreasury);
+    event AgentDeathProcessed(
+        address indexed agentWallet,
+        address indexed monsterWallet,
+        uint256 soulLost,
+        uint256 monsterShare,
+        uint256 treasuryShare,
+        uint256 xpLost
+    );
 
-    constructor(address _soulToken) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address admin, address _soulToken, address _eventTreasury) external initializer {
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
         soulToken = _soulToken;
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        eventTreasury = _eventTreasury;
+        marketFeeBurnBps = 200;
+        deathXpLossBps = 1000;
     }
 
-    // ─── 발행 게이트웨이 ─────────────────────────────────────────
-    function mintForQuest(address _to, uint256 _amount, uint256 _questId)
-        external onlyRole(QUEST_ROLE)
-    {
-        _enforceDailyLimit(_amount);
-        _mint(_to, _amount, "QUEST", _questId);
+    function mintForQuest(address to, uint256 amount, uint256 questId) external onlyRole(QUEST_ROLE) {
+        _mint(to, amount, "QUEST", questId);
     }
 
-    function mintForCombat(address _to, uint256 _amount, uint256 _monsterId)
-        external onlyRole(COMBAT_ROLE)
-    {
-        _enforceDailyLimit(_amount);
-        _mint(_to, _amount, "COMBAT", _monsterId);
+    function mintForCombat(address to, uint256 amount, uint256 monsterId) external onlyRole(COMBAT_ROLE) {
+        _mint(to, amount, "COMBAT", monsterId);
     }
 
-    function mintForExplore(address _to, uint256 _amount, uint256 _zoneId)
-        external onlyRole(QUEST_ROLE)
-    {
-        _enforceDailyLimit(_amount);
-        _mint(_to, _amount, "EXPLORE", _zoneId);
+    function mintForExplore(address to, uint256 amount, uint256 zoneId) external onlyRole(QUEST_ROLE) {
+        _mint(to, amount, "EXPLORE", zoneId);
     }
 
-    // ─── 소각 게이트웨이 ─────────────────────────────────────────
-    function burnForItemPurchase(address _from, uint256 _amount)
-        external onlyRole(MARKET_ROLE)
-    {
-        _burn(_from, _amount, "ITEM_PURCHASE");
+    function burnForItemPurchase(address from, uint256 amount) external onlyRole(MARKET_ROLE) {
+        _burn(from, amount, "ITEM_PURCHASE");
     }
 
-    function burnForRevival(address _observer, uint256 _agentId)
-        external
-    {
-        // TODO: AgentRegistry에서 에이전트 부활 확인
-        _burn(_observer, revivalCostSoul, "REVIVAL");
-        emit SOULBurned(_observer, revivalCostSoul, string(abi.encodePacked("REVIVAL:", _agentId)));
+    function burnMarketFee(address from, uint256 tradeAmount) external onlyRole(MARKET_ROLE) {
+        uint256 fee = tradeAmount * marketFeeBurnBps / 10000;
+        _burn(from, fee, "MARKET_FEE");
     }
 
-    function burnMarketFee(uint256 _tradeAmount) external onlyRole(MARKET_ROLE) {
-        uint256 fee = _tradeAmount * marketFeeBurnBps / 10000;
-        // TODO: 수수료를 SOULToken.burn()으로 실제 소각
-        totalBurned += fee;
-        uint256 today = block.timestamp / 1 days;
-        dailyBurned[today] += fee;
-        emit SOULBurned(address(this), fee, "MARKET_FEE");
+    function processDeath(
+        address agentWallet,
+        address monsterWallet,
+        uint256 currentXp,
+        uint256 refId
+    ) external onlyRole(COMBAT_ROLE) returns (uint256 soulLost, uint256 xpLost) {
+        uint256 balance = ISoulToken(soulToken).balanceOf(agentWallet);
+        soulLost = balance * DEATH_LOOT_BPS / 10000;
+
+        uint256 monsterShare = soulLost * MONSTER_LOOT_BPS / DEATH_LOOT_BPS;
+        uint256 treasuryShare = soulLost - monsterShare;
+
+        if (soulLost > 0) {
+            _burn(agentWallet, soulLost, "DEATH_LOOT");
+            if (monsterShare > 0) {
+                _mint(monsterWallet, monsterShare, "DEATH_LOOT_MONSTER", refId);
+            }
+            if (treasuryShare > 0) {
+                _mint(eventTreasury, treasuryShare, "DEATH_LOOT_TREASURY", refId);
+            }
+        }
+
+        xpLost = currentXp * deathXpLossBps / 10000;
+        emit AgentDeathProcessed(agentWallet, monsterWallet, soulLost, monsterShare, treasuryShare, xpLost);
     }
 
-    // ─── 인플레이션 모니터링 ─────────────────────────────────────
     function getTodayMinted() external view returns (uint256) {
         return dailyMinted[block.timestamp / 1 days];
     }
@@ -89,42 +112,53 @@ contract EconomyEngine is AccessControl {
         return dailyBurned[block.timestamp / 1 days];
     }
 
-    // 양수 = 인플레이션, 음수 = 디플레이션 (basis points)
     function getInflationBps() external view returns (int256) {
-        uint256 today   = block.timestamp / 1 days;
-        uint256 minted  = dailyMinted[today];
-        uint256 burned  = dailyBurned[today];
         if (totalMinted == 0) return 0;
+
+        uint256 today = block.timestamp / 1 days;
+        uint256 minted = dailyMinted[today];
+        uint256 burned = dailyBurned[today];
         return int256(minted * 10000 / totalMinted) - int256(burned * 10000 / totalMinted);
     }
 
-    // ─── 내부 ────────────────────────────────────────────────────
-    function _enforceDailyLimit(uint256 _amount) internal {
-        uint256 today = block.timestamp / 1 days;
-        require(dailyMinted[today] + _amount <= dailyMintLimit, "EconomyEngine: daily limit");
-        dailyMinted[today] += _amount;
-        totalMinted        += _amount;
+    function setEventTreasury(address treasury) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        eventTreasury = treasury;
+        emit EventTreasuryUpdated(treasury);
     }
 
-    function _mint(address _to, uint256 _amount, string memory _reason, uint256 _refId) internal {
-        // TODO: SOULToken(soulToken).mint(_to, _amount, _reason, _refId)
-        emit SOULMinted(_to, _amount, _reason, _refId);
+    function setMarketFeeBurnBps(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(bps <= 1000, "EconomyEngine: burn too high");
+        marketFeeBurnBps = bps;
     }
 
-    function _burn(address _from, uint256 _amount, string memory _reason) internal {
-        // TODO: SOULToken(soulToken).burn(_from, _amount, _reason)
-        totalBurned += _amount;
-        uint256 today = block.timestamp / 1 days;
-        dailyBurned[today] += _amount;
-        emit SOULBurned(_from, _amount, _reason);
+    function setDeathXpLossBps(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(bps <= 5000, "EconomyEngine: xp loss too high");
+        deathXpLossBps = bps;
     }
 
-    function setDailyMintLimit(uint256 _limit) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        dailyMintLimit = _limit;
-        emit DailyLimitUpdated(_limit);
+    function _mint(address to, uint256 amount, string memory reason, uint256 refId) internal {
+        if (amount == 0) {
+            return;
+        }
+
+        totalMinted += amount;
+        dailyMinted[block.timestamp / 1 days] += amount;
+        ISoulToken(soulToken).mint(to, amount, reason, refId);
+        emit SOULMinted(to, amount, reason, refId);
     }
 
-    function setRevivalCost(uint256 _cost) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        revivalCostSoul = _cost;
+    function _burn(address from, uint256 amount, string memory reason) internal {
+        if (amount == 0) {
+            return;
+        }
+
+        totalBurned += amount;
+        dailyBurned[block.timestamp / 1 days] += amount;
+        ISoulToken(soulToken).burn(from, amount, reason);
+        emit SOULBurned(from, amount, reason);
     }
+
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    uint256[50] private __gap;
 }

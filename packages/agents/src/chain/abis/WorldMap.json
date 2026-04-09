@@ -1,0 +1,26 @@
+[
+  {
+    "inputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }],
+    "name": "getZone",
+    "outputs": [
+      {
+        "components": [
+          { "internalType": "uint256", "name": "zoneId", "type": "uint256" },
+          { "internalType": "string", "name": "name", "type": "string" },
+          { "internalType": "string", "name": "koreanName", "type": "string" },
+          { "internalType": "uint8", "name": "danger", "type": "uint8" },
+          { "internalType": "uint256", "name": "requiredNodes", "type": "uint256" },
+          { "internalType": "uint256", "name": "maxAgents", "type": "uint256" },
+          { "internalType": "bool", "name": "isUnlocked", "type": "bool" },
+          { "internalType": "uint256[]", "name": "connections", "type": "uint256[]" },
+          { "internalType": "uint256", "name": "unlockedAt", "type": "uint256" }
+        ],
+        "internalType": "tuple",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

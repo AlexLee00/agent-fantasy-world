@@ -1,69 +1,112 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
- * @title AgentRegistry — 에이전트 생성 및 상태 관리
- * @notice AFW 세계의 모든 에이전트가 등록되는 핵심 컨트랙트
- *
- * 에이전트 생명주기:
- *   생성 → 탐험 → 성장 → 마일스톤 → 유저 개입 or 자율결정
+ * @title AgentRegistry — agent creation and state management
+ * @notice Uses open registry-based class and status definitions instead of enums.
  */
-contract AgentRegistry is AccessControl {
+contract AgentRegistry is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant ORACLE_ROLE = keccak256("ORACLE_ROLE");
+    bytes32 public constant COMBAT_ROLE = keccak256("COMBAT_ROLE");
 
-    enum AgentClass  { WARRIOR, MAGE, RANGER, HEALER, TANK }
-    enum AgentStatus { ALIVE, DEAD, RESTING, IN_COMBAT, TRAVELING }
+    uint32 private constant MIN_CLASS_HP = 70;
+    uint32 private constant MAX_CLASS_HP = 150;
+    uint32 private constant MIN_CLASS_MP = 30;
+    uint32 private constant MAX_CLASS_MP = 120;
+    uint32 private constant MIN_CLASS_ATK = 10;
+    uint32 private constant MAX_CLASS_ATK = 25;
+    uint32 private constant MIN_CLASS_DEF = 8;
+    uint32 private constant MAX_CLASS_DEF = 25;
+    uint32 private constant MIN_CLASS_SPD = 7;
+    uint32 private constant MAX_CLASS_SPD = 16;
 
     struct Personality {
-        uint8 bravery;      // 용감함 0-100
-        uint8 greed;        // 탐욕  0-100
-        uint8 sociability;  // 사교성 0-100
-        uint8 curiosity;    // 호기심 0-100
-        uint8 loyalty;      // 충성심 0-100
+        uint8 bravery;
+        uint8 greed;
+        uint8 sociability;
+        uint8 curiosity;
+        uint8 loyalty;
     }
 
     struct Stats {
-        uint32 hp;     uint32 maxHp;
-        uint32 mp;     uint32 maxMp;
-        uint32 attack; uint32 defense; uint32 speed;
+        uint32 hp;
+        uint32 maxHp;
+        uint32 mp;
+        uint32 maxMp;
+        uint32 attack;
+        uint32 defense;
+        uint32 speed;
+    }
+
+    struct ClassDefinition {
+        uint256 classId;
+        string name;
+        Stats minStats;
+        Stats maxStats;
+        bool exists;
+    }
+
+    struct StatusDefinition {
+        uint256 statusId;
+        string name;
+        bool isTerminal;
+        bool exists;
     }
 
     struct Agent {
-        uint256  agentId;
-        address  observer;       // 연결 유저 (없으면 address(0))
-        AgentClass  agentClass;
-        AgentStatus status;
-        uint8    level;
-        uint64   experience;
-        uint256  zoneId;
+        uint256 agentId;
+        address observer;
+        uint256 classId;
+        uint256 statusId;
+        uint8 level;
+        uint64 experience;
+        uint256 zoneId;
         Personality personality;
-        Stats    stats;
-        uint256  createdAt;
-        uint256  lastActionBlock;
-        bytes32  personalityHash; // LLM 프롬프트 시드
+        Stats stats;
+        uint256 createdAt;
+        uint256 lastActionBlock;
+        bytes32 personalityHash;
     }
 
-    mapping(uint256 => Agent)    public agents;
+    mapping(uint256 => Agent) public agents;
     mapping(address => uint256[]) public observerAgents;
     mapping(uint256 => uint256[]) public zoneAgents;
+    mapping(uint256 => ClassDefinition) public classRegistry;
+    mapping(uint256 => StatusDefinition) public statusRegistry;
 
     uint256 public totalAgents;
-    uint256 public agentCreationCostSOUL = 100 * 10 ** 18; // 100 SOUL
+    uint256 public totalClasses;
+    uint256 public totalStatuses;
+    uint256 public agentCreationCostSOUL;
 
-    event AgentCreated(uint256 indexed agentId, address indexed observer, AgentClass agentClass);
+    event AgentCreated(uint256 indexed agentId, address indexed observer, uint256 indexed classId);
     event AgentLevelUp(uint256 indexed agentId, uint8 newLevel);
-    event AgentStatusChanged(uint256 indexed agentId, AgentStatus newStatus);
+    event AgentStatusChanged(uint256 indexed agentId, uint256 indexed newStatusId);
     event MilestoneTriggered(uint256 indexed agentId, string milestoneType, bytes data);
     event AgentDied(uint256 indexed agentId, string cause);
+    event ClassRegistered(uint256 indexed classId, string name);
+    event StatusRegistered(uint256 indexed statusId, string name, bool isTerminal);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _disableInitializers();
+    }
+
+    function initialize(address admin) external initializer {
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        agentCreationCostSOUL = 100 * 10 ** 18;
     }
 
     modifier onlyOracle() {
-        require(hasRole(ORACLE_ROLE, msg.sender), "AgentRegistry: not oracle");
+        require(
+            hasRole(ORACLE_ROLE, msg.sender) || hasRole(COMBAT_ROLE, msg.sender),
+            "AgentRegistry: not oracle"
+        );
         _;
     }
 
@@ -72,105 +115,245 @@ contract AgentRegistry is AccessControl {
         _;
     }
 
-    /// @notice 에이전트 생성
-    function createAgent(
-        AgentClass _class,
-        uint8[5] calldata _personality  // [bravery, greed, sociability, curiosity, loyalty]
-    ) external returns (uint256 agentId) {
-        // TODO: SOUL 비용 차감
-        agentId = ++totalAgents;
+    function registerClass(
+        string calldata name,
+        Stats calldata minStats,
+        Stats calldata maxStats
+    ) external returns (uint256 classId) {
+        _validateClassStats(minStats, maxStats);
 
-        bytes32 pHash = keccak256(abi.encodePacked(agentId, block.timestamp, msg.sender, _personality));
+        classId = ++totalClasses;
+        classRegistry[classId] = ClassDefinition({
+            classId: classId,
+            name: name,
+            minStats: minStats,
+            maxStats: maxStats,
+            exists: true
+        });
+
+        emit ClassRegistered(classId, name);
+    }
+
+    function registerStatus(string calldata name, bool isTerminal) external returns (uint256 statusId) {
+        statusId = ++totalStatuses;
+        statusRegistry[statusId] = StatusDefinition({
+            statusId: statusId,
+            name: name,
+            isTerminal: isTerminal,
+            exists: true
+        });
+
+        emit StatusRegistered(statusId, name, isTerminal);
+    }
+
+    function createAgent(
+        uint256 classId,
+        uint8[5] calldata personalityInput
+    ) external returns (uint256 agentId) {
+        require(classRegistry[classId].exists, "AgentRegistry: class not found");
+        require(statusRegistry[1].exists, "AgentRegistry: alive status missing");
+
+        for (uint256 i = 0; i < personalityInput.length; i++) {
+            require(personalityInput[i] <= 100, "AgentRegistry: invalid personality");
+        }
+
+        agentId = ++totalAgents;
+        bytes32 personalityHash = keccak256(
+            abi.encodePacked(agentId, block.timestamp, block.prevrandao, msg.sender, personalityInput)
+        );
 
         agents[agentId] = Agent({
-            agentId:         agentId,
-            observer:        msg.sender,
-            agentClass:      _class,
-            status:          AgentStatus.ALIVE,
-            level:           1,
-            experience:      0,
-            zoneId:          1,  // Lumenveil (마을) 시작
-            personality:     Personality(_personality[0], _personality[1], _personality[2], _personality[3], _personality[4]),
-            stats:           _initStats(_class),
-            createdAt:       block.timestamp,
+            agentId: agentId,
+            observer: msg.sender,
+            classId: classId,
+            statusId: 1,
+            level: 1,
+            experience: 0,
+            zoneId: 1,
+            personality: Personality(
+                personalityInput[0],
+                personalityInput[1],
+                personalityInput[2],
+                personalityInput[3],
+                personalityInput[4]
+            ),
+            stats: _rollStats(classId, personalityHash),
+            createdAt: block.timestamp,
             lastActionBlock: block.number,
-            personalityHash: pHash
+            personalityHash: personalityHash
         });
 
         observerAgents[msg.sender].push(agentId);
         zoneAgents[1].push(agentId);
 
-        emit AgentCreated(agentId, msg.sender, _class);
+        emit AgentCreated(agentId, msg.sender, classId);
     }
 
-    /// @notice 오라클이 에이전트 상태 업데이트
     function updateAgentState(
-        uint256 _agentId,
-        Stats calldata _newStats,
-        uint32 _expGained,
-        uint256 _newZoneId,
-        AgentStatus _newStatus
+        uint256 agentId,
+        Stats calldata newStats,
+        uint32 expGained,
+        uint256 newZoneId,
+        uint256 newStatusId
     ) external onlyOracle {
-        Agent storage agent = agents[_agentId];
-        agent.stats  = _newStats;
-        agent.status = _newStatus;
-        agent.lastActionBlock = block.number;
+        require(statusRegistry[newStatusId].exists, "AgentRegistry: status not found");
 
-        if (_newZoneId != agent.zoneId) {
-            agent.zoneId = _newZoneId;
+        Agent storage agent = agents[agentId];
+        require(agent.agentId != 0, "AgentRegistry: agent not found");
+
+        agent.stats = newStats;
+        agent.lastActionBlock = block.number;
+        agent.experience += expGained;
+
+        if (newZoneId != agent.zoneId) {
+            agent.zoneId = newZoneId;
+            zoneAgents[newZoneId].push(agentId);
         }
 
-        agent.experience += _expGained;
-        _checkLevelUp(_agentId);
-        _checkMilestone(_agentId, _newStats);
+        if (newStatusId != agent.statusId) {
+            agent.statusId = newStatusId;
+            emit AgentStatusChanged(agentId, newStatusId);
+
+            if (statusRegistry[newStatusId].isTerminal) {
+                emit AgentDied(agentId, statusRegistry[newStatusId].name);
+            }
+        }
+
+        _checkLevelUp(agentId);
+        _checkMilestone(agentId, newStats);
     }
 
-    /// @notice 유저 개입: 아이템 지원 (마일스톤 응답)
-    function supportAgent(uint256 _agentId, uint256 _itemId) external onlyObserver(_agentId) {
-        // TODO: ItemRegistry에서 아이템 이동
-        emit MilestoneTriggered(_agentId, "ITEM_SUPPORT", abi.encode(_itemId));
+    function supportAgent(uint256 agentId, uint256 itemId) external onlyObserver(agentId) {
+        emit MilestoneTriggered(agentId, "ITEM_SUPPORT", abi.encode(itemId));
     }
 
-    /// @notice 마일스톤 결정 제출
     function resolveMillestone(
-        uint256 _agentId,
-        bytes calldata _decision,
-        uint256 _milestoneId
-    ) external onlyObserver(_agentId) {
-        emit MilestoneTriggered(_agentId, "DECISION", abi.encode(_milestoneId, _decision));
+        uint256 agentId,
+        bytes calldata decision,
+        uint256 milestoneId
+    ) external onlyObserver(agentId) {
+        emit MilestoneTriggered(agentId, "DECISION", abi.encode(milestoneId, decision));
     }
 
-    function _checkLevelUp(uint256 _agentId) internal {
-        Agent storage agent = agents[_agentId];
+    function getAgent(uint256 agentId) external view returns (Agent memory) {
+        return agents[agentId];
+    }
+
+    function getObserverAgents(address observer) external view returns (uint256[] memory) {
+        return observerAgents[observer];
+    }
+
+    function getObserver(uint256 agentId) external view returns (address) {
+        return agents[agentId].observer;
+    }
+
+    function applyCombatResult(
+        uint256 agentId,
+        Stats calldata newStats,
+        uint64 newExperience,
+        uint256 newZoneId,
+        uint256 newStatusId
+    ) external onlyRole(COMBAT_ROLE) {
+        require(statusRegistry[newStatusId].exists, "AgentRegistry: status not found");
+
+        Agent storage agent = agents[agentId];
+        require(agent.agentId != 0, "AgentRegistry: agent not found");
+
+        agent.stats = newStats;
+        agent.lastActionBlock = block.number;
+        agent.experience = newExperience;
+
+        if (newZoneId != agent.zoneId) {
+            agent.zoneId = newZoneId;
+            zoneAgents[newZoneId].push(agentId);
+        }
+
+        if (newStatusId != agent.statusId) {
+            agent.statusId = newStatusId;
+            emit AgentStatusChanged(agentId, newStatusId);
+
+            if (statusRegistry[newStatusId].isTerminal) {
+                emit AgentDied(agentId, statusRegistry[newStatusId].name);
+            }
+        }
+
+        _checkMilestone(agentId, newStats);
+    }
+
+    function _rollStats(uint256 classId, bytes32 seed) internal view returns (Stats memory) {
+        ClassDefinition storage classDef = classRegistry[classId];
+        return Stats({
+            hp: _rollWithin(classDef.minStats.hp, classDef.maxStats.hp, seed, "hp"),
+            maxHp: _rollWithin(classDef.minStats.maxHp, classDef.maxStats.maxHp, seed, "maxHp"),
+            mp: _rollWithin(classDef.minStats.mp, classDef.maxStats.mp, seed, "mp"),
+            maxMp: _rollWithin(classDef.minStats.maxMp, classDef.maxStats.maxMp, seed, "maxMp"),
+            attack: _rollWithin(classDef.minStats.attack, classDef.maxStats.attack, seed, "attack"),
+            defense: _rollWithin(classDef.minStats.defense, classDef.maxStats.defense, seed, "defense"),
+            speed: _rollWithin(classDef.minStats.speed, classDef.maxStats.speed, seed, "speed")
+        });
+    }
+
+    function _rollWithin(uint32 minValue, uint32 maxValue, bytes32 seed, string memory salt)
+        internal
+        view
+        returns (uint32)
+    {
+        if (minValue == maxValue) {
+            return minValue;
+        }
+
+        uint256 range = uint256(maxValue - minValue) + 1;
+        uint256 randomValue = uint256(keccak256(abi.encodePacked(seed, salt, block.timestamp, msg.sender)));
+        return uint32(uint256(minValue) + (randomValue % range));
+    }
+
+    function _checkLevelUp(uint256 agentId) internal {
+        Agent storage agent = agents[agentId];
         uint64 needed = uint64(agent.level) * 100;
         if (agent.experience >= needed && agent.level < 99) {
             agent.level++;
             agent.experience -= needed;
-            emit AgentLevelUp(_agentId, agent.level);
-            emit MilestoneTriggered(_agentId, "LEVEL_UP", abi.encode(agent.level));
+            emit AgentLevelUp(agentId, agent.level);
+            emit MilestoneTriggered(agentId, "LEVEL_UP", abi.encode(agent.level));
         }
     }
 
-    function _checkMilestone(uint256 _agentId, Stats memory s) internal {
+    function _checkMilestone(uint256 agentId, Stats memory s) internal {
         if (s.maxHp > 0 && s.hp * 100 / s.maxHp <= 20) {
-            emit MilestoneTriggered(_agentId, "HP_CRITICAL", abi.encode(s.hp, s.maxHp));
+            emit MilestoneTriggered(agentId, "HP_CRITICAL", abi.encode(s.hp, s.maxHp));
         }
     }
 
-    function _initStats(AgentClass _class) internal pure returns (Stats memory s) {
-        if (_class == AgentClass.WARRIOR) return Stats(100,100,50,50,20,15,10);
-        if (_class == AgentClass.MAGE)    return Stats( 70, 70,120,120,25, 8,12);
-        if (_class == AgentClass.RANGER)  return Stats( 80, 80,60,60,18,12,16);
-        if (_class == AgentClass.HEALER)  return Stats( 75, 75,100,100,10,10,11);
-        if (_class == AgentClass.TANK)    return Stats(150,150,30,30,12,25, 7);
-        return Stats(100,100,50,50,15,15,10);
+    function _validateClassStats(Stats calldata minStats, Stats calldata maxStats) internal pure {
+        require(minStats.hp <= maxStats.hp, "AgentRegistry: invalid hp range");
+        require(minStats.maxHp <= maxStats.maxHp, "AgentRegistry: invalid maxHp range");
+        require(minStats.mp <= maxStats.mp, "AgentRegistry: invalid mp range");
+        require(minStats.maxMp <= maxStats.maxMp, "AgentRegistry: invalid maxMp range");
+        require(minStats.attack <= maxStats.attack, "AgentRegistry: invalid atk range");
+        require(minStats.defense <= maxStats.defense, "AgentRegistry: invalid def range");
+        require(minStats.speed <= maxStats.speed, "AgentRegistry: invalid spd range");
+
+        _requireBetween(minStats.hp, MIN_CLASS_HP, MAX_CLASS_HP, "AgentRegistry: hp out of range");
+        _requireBetween(maxStats.hp, MIN_CLASS_HP, MAX_CLASS_HP, "AgentRegistry: hp out of range");
+        _requireBetween(minStats.maxHp, MIN_CLASS_HP, MAX_CLASS_HP, "AgentRegistry: maxHp out of range");
+        _requireBetween(maxStats.maxHp, MIN_CLASS_HP, MAX_CLASS_HP, "AgentRegistry: maxHp out of range");
+        _requireBetween(minStats.mp, MIN_CLASS_MP, MAX_CLASS_MP, "AgentRegistry: mp out of range");
+        _requireBetween(maxStats.mp, MIN_CLASS_MP, MAX_CLASS_MP, "AgentRegistry: mp out of range");
+        _requireBetween(minStats.maxMp, MIN_CLASS_MP, MAX_CLASS_MP, "AgentRegistry: maxMp out of range");
+        _requireBetween(maxStats.maxMp, MIN_CLASS_MP, MAX_CLASS_MP, "AgentRegistry: maxMp out of range");
+        _requireBetween(minStats.attack, MIN_CLASS_ATK, MAX_CLASS_ATK, "AgentRegistry: atk out of range");
+        _requireBetween(maxStats.attack, MIN_CLASS_ATK, MAX_CLASS_ATK, "AgentRegistry: atk out of range");
+        _requireBetween(minStats.defense, MIN_CLASS_DEF, MAX_CLASS_DEF, "AgentRegistry: def out of range");
+        _requireBetween(maxStats.defense, MIN_CLASS_DEF, MAX_CLASS_DEF, "AgentRegistry: def out of range");
+        _requireBetween(minStats.speed, MIN_CLASS_SPD, MAX_CLASS_SPD, "AgentRegistry: spd out of range");
+        _requireBetween(maxStats.speed, MIN_CLASS_SPD, MAX_CLASS_SPD, "AgentRegistry: spd out of range");
     }
 
-    function getAgent(uint256 _agentId) external view returns (Agent memory) {
-        return agents[_agentId];
+    function _requireBetween(uint32 value, uint32 minValue, uint32 maxValue, string memory reason) internal pure {
+        require(value >= minValue && value <= maxValue, reason);
     }
 
-    function getObserverAgents(address _observer) external view returns (uint256[] memory) {
-        return observerAgents[_observer];
-    }
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    uint256[50] private __gap;
 }

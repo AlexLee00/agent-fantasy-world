@@ -1,0 +1,66 @@
+import Config
+
+env_path =
+  Path.expand("../../agents/.env", __DIR__)
+
+if File.exists?(env_path) do
+  source = Dotenvy.source!(env_path)
+  Enum.each(source, fn {key, value} -> System.put_env(key, value) end)
+end
+
+deployments_path = Path.expand("../../contracts/deployments.json", __DIR__)
+
+deployments =
+  if File.exists?(deployments_path) do
+    deployments_path |> File.read!() |> Jason.decode!()
+  else
+    %{}
+  end
+
+contract = fn key ->
+  System.get_env("#{String.upcase(key)}_ADDRESS") ||
+    Map.get(deployments, key) ||
+    raise "Missing contract address for #{key}"
+end
+
+config :afw,
+  rpc_url: System.get_env("RPC_URL", "https://base-sepolia-rpc.publicnode.com"),
+  private_key: System.get_env("PRIVATE_KEY", ""),
+  brain_provider: System.get_env("BRAIN_PROVIDER", "claude-code"),
+  claude_code_path: System.get_env("CLAUDE_CODE_PATH", "/opt/homebrew/bin/claude"),
+  claude_code_model: System.get_env("CLAUDE_CODE_MODEL", "sonnet"),
+  anthropic_api_key: System.get_env("ANTHROPIC_API_KEY", ""),
+  openai_api_key: System.get_env("OPENAI_API_KEY", ""),
+  tick_interval_ms: String.to_integer(System.get_env("AGENT_LOOP_INTERVAL", "10")) * 1_000,
+  guardian_dashboard_path:
+    System.get_env("GUARDIAN_DASHBOARD_PATH", "../agents/logs/guardian_dashboard.json"),
+  economy_metrics_path:
+    System.get_env("ECONOMY_METRICS_PATH", "../agents/logs/economy_metrics.json"),
+  simulation_ticks: String.to_integer(System.get_env("SIMULATION_TICKS", "50")),
+  contracts: %{
+    afw_token: contract.("AFWToken"),
+    soul_token: contract.("SOULToken"),
+    world_map: contract.("WorldMap"),
+    agent_registry: contract.("AgentRegistry"),
+    node_registry: contract.("NodeRegistry"),
+    oracle_gateway: contract.("OracleGateway"),
+    economy_engine: contract.("EconomyEngine"),
+    quest_engine: contract.("QuestEngine"),
+    governance_dao: contract.("GovernanceDAO"),
+    item_registry: contract.("ItemRegistry"),
+    monster_registry: contract.("MonsterRegistry"),
+    npc_registry: contract.("NPCRegistry"),
+    event_treasury: contract.("EventTreasury"),
+    combat_resolver: contract.("CombatResolver"),
+    marketplace: contract.("Marketplace")
+  },
+  default_agents: [
+    %{label: "Warrior", class_id: 1, personality: [90, 10, 30, 80, 50]},
+    %{label: "Mage", class_id: 2, personality: [30, 80, 70, 40, 60]},
+    %{label: "Ranger", class_id: 3, personality: [50, 50, 90, 50, 50]}
+  ]
+
+config :afw, AFWWeb.Endpoint,
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT", "4000"))],
+  secret_key_base: System.get_env("SECRET_KEY_BASE", String.duplicate("afw_runtime_secret_", 4)),
+  server: true
