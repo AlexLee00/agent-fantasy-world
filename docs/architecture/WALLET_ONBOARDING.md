@@ -6,9 +6,21 @@
 
 The barrier to entry is zero. A new user should go from "I heard about AFW" to "my agent is exploring Aethermoor" in under 60 seconds, with nothing more than a Google login.
 
+## Rollout Strategy — Level 1 First
+
+AFW launches with Level 1 only. Level 2 and 3 are added later when the user base and infrastructure are ready.
+
+```
+Phase 1 (Launch):   Level 1 only — Embedded Wallet for everyone
+Phase 2 (Growth):   Add Level 2 — External wallet linking
+Phase 3 (Maturity): Add Level 3 — Direct Web3 wallet support
+```
+
+This means at launch, every user gets the same simple experience. No MetaMask, no seed phrases, no gas fees. Just Google login and play.
+
 ## Three User Levels
 
-### Level 1 — Casual Player (95% of users)
+### Level 1 — Casual Player (Phase 1 — Launch)
 
 ```
 User experience:
@@ -35,7 +47,9 @@ What they never see:
 - Gas fees are paid by AFW via Paymaster (ERC-4337)
 - User interacts only with game UI, never with blockchain UI
 
-### Level 2 — Power Player (4% of users)
+**Direct external transfer is impossible** — Embedded Wallet is a smart contract wallet. Only the game backend can sign transactions through it. Users cannot open MetaMask and send tokens from it. All asset movements go through the game UI → Settlement Hub → blockchain. This eliminates the batch gap problem entirely for Level 1 users.
+
+### Level 2 — Power Player (Phase 2 — After launch)
 
 ```
 User experience:
@@ -54,7 +68,9 @@ User experience:
 - Game actions continue through Embedded Wallet (no UX change)
 - External wallet gives full self-custody for withdrawals
 
-### Level 3 — Web3 Native (1% of users)
+**External wallet transfers:** When user transfers assets from their external wallet directly (e.g., via MetaMask), the Settlement Hub detects this via Transfer event subscription and reconciles the game state. This is acceptable because Level 2 users understand blockchain basics.
+
+### Level 3 — Web3 Native (Phase 3 — Maturity)
 
 ```
 User experience:
@@ -71,6 +87,54 @@ User experience:
 - User pays own gas (or opts into Paymaster)
 - Full Web3 experience
 
+**Direct transfers handled by:** Transfer event subscription + Reconciler (60-second sync). Level 3 users are Web3 native and understand blockchain confirmation times.
+
+## Batch Gap Protection by Level
+
+The Settlement Hub batches game events for efficiency. This creates a time gap between game action and on-chain confirmation. Each level handles this differently:
+
+### Level 1 — No gap problem
+
+```
+User cannot bypass Settlement Hub:
+  - Embedded Wallet is a smart contract wallet
+  - Only game backend can sign transactions
+  - No MetaMask, no direct transfers
+  - All actions flow: Game UI → Settlement Hub → Blockchain
+  - Optimistic state + pending locks work perfectly
+  - Zero edge cases
+```
+
+### Level 2 — Managed gap (added later)
+
+```
+Game assets stay in Embedded Wallet:
+  - Game actions: Embedded Wallet → Settlement Hub (no gap issue)
+  - Withdrawals: Game UI → Hub → external wallet (Hub knows about it)
+  - External direct transfers: detected via event subscription
+
+Edge case: User sends SOUL from external wallet
+  → Transfer event detected within seconds
+  → Settlement Hub adjusts external wallet balance
+  → Game state (Embedded Wallet) unaffected
+  → No impact on gameplay
+```
+
+### Level 3 — User-managed gap (added later)
+
+```
+User signs all transactions directly:
+  - Game actions go through Settlement Hub (with user signature)
+  - Direct contract calls bypass Hub
+  → Reconciler syncs every 60 seconds
+  → Transfer event subscription for faster detection
+  → Level 3 users understand and accept this
+
+Display:
+  SOUL: 50 (confirmed) + 15 (pending) = 65
+  "Use only confirmed balance for external transfers"
+```
+
 ## Embedded Wallet Architecture
 
 ```
@@ -80,7 +144,7 @@ User (browser)              AFW Backend              Blockchain
 | Google OAuth   |--->| Auth Service        |    |                |
 |                |    |   |                 |    |                |
 | Game UI        |    |   v                 |    |                |
-| (React/LiveView)|   | Wallet Service      |    |                |
+| (LiveView)     |    | Wallet Service      |    |                |
 |                |    |   |                 |    |                |
 | "Buy sword"    |--->|   | Embedded Wallet |    |                |
 | click          |    |   | (encrypted key) |--->| Marketplace    |
@@ -111,10 +175,10 @@ User only sees:  "Bought Iron Sword for 50 SOUL"
 - Accept quest rewards
 
 ### What Embedded Wallet CANNOT do without user confirmation:
-- Transfer SOUL/AFW to external address (requires PIN/biometric)
+- Transfer SOUL/AFW to another user (requires PIN/biometric)
 - Marketplace listing above threshold (requires confirmation)
 - Agent deletion
-- Wallet export
+- Wallet export (Level 2 migration only)
 
 ## Gas Fee Abstraction (Paymaster)
 
@@ -139,7 +203,7 @@ How Paymaster works:
 | Off-chain game logic | HP, movement, dialogue = 0 gas |
 | Paymaster sponsorship | AFW treasury pays gas |
 | Deferred settlement | Non-urgent events batch every 5 min |
-| L2 base cost | Base Sepolia tx = ~$0.001 |
+| L2 base cost | Base tx = ~$0.001 |
 
 Estimated gas cost per user per month: ~$0.50 (covered by AFW treasury).
 
@@ -171,17 +235,16 @@ Some actions require explicit user approval, even with Embedded Wallet:
 
 ```
 Level 1 (PIN or biometric):
-  - Send SOUL/AFW to another address
+  - Send SOUL/AFW to another user
   - List item on marketplace above 500 SOUL
-  - Export wallet / reveal key
   - Delete agent
 
-Level 2 (wallet signature):
-  - Transfer to external wallet
+Level 2 (added later — wallet signature):
+  - Withdraw to external wallet
   - Connect/disconnect external wallet
   - Large marketplace trades
 
-Level 3 (direct signature):
+Level 3 (added later — direct signature):
   - Everything is user-signed by default
 ```
 
@@ -204,13 +267,12 @@ Threats and mitigations:
    -> Session Keys have hard-coded permission boundaries
    -> Guardian Agent monitors all wallet activity
 
-4. User wants self-custody
+4. User wants self-custody (Phase 2+)
    -> Level 2: link external wallet, transfer assets out
-   -> Level 3: use own wallet from the start
    -> Embedded Wallet is a convenience, not a prison
 ```
 
-## Migration Path
+## Migration Path (Phase 2+)
 
 ```
 Level 1 -> Level 2:
