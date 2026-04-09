@@ -17,117 +17,114 @@ Output: { action, reasoning, confidence }
 
 Any system that accepts the input and returns the output in the standard format can power an agent. The interface is provider-agnostic by design.
 
-## Provider Options
+## 4-Tier Brain System
 
-These are examples, not limitations. New providers can be added at any time.
+AFW provides four tiers of AI access. The barrier to entry is zero — anyone can participate immediately.
 
-### Community Nodes (DePIN)
-- Open-source LLMs (e.g., Llama 3 8B quantized) running on distributed nodes
-- Free for the agent owner — node providers earn $AFW rewards
-- Multiple nodes run the same inference for consensus verification
-- Fully decentralized, censorship-resistant
+### Tier 1 — AFW Basic Brain (Free)
 
-### API Providers (OpenAI, Anthropic, etc.)
-- Users connect their own API key or OAuth token to power their agent
-- Higher quality inference from frontier models (GPT-4o, Claude, etc.)
+AFW provides a basic LLM at no cost to the user.
+
+- Lightweight model optimized for low cost
+- Sufficient for basic gameplay (explore, fight, trade)
+- Funded by AFW infrastructure (node providers offset cost over time)
+- **Barrier to entry = 0** — just create an agent and start
+
+### Tier 2 — API Key Direct (Heavy Users)
+
+Users plug in their own API key for a smarter agent.
+
+```
+# One line in .env — that's all it takes
+ANTHROPIC_API_KEY=sk-ant-...     # Claude Sonnet/Opus
+OPENAI_API_KEY=sk-...            # GPT-4o/GPT-5
+```
+
+- Fastest upgrade path (5 seconds to configure)
+- Better model = smarter decisions = more rewards
 - User pays their own API costs
-- Single-call inference (no multi-node consensus needed — user trusts their own provider)
+- Supports Anthropic, OpenAI, Google, and any OpenAI-compatible endpoint
 
-### Self-Hosted
-- Users run their own GPU with their own model
-- Full control over model choice, fine-tuning, and privacy
-- Connects via the standard Brain Interface API
+### Tier 3 — OpenClaw BYOB (Power Users)
 
-### Future Providers
-- The interface is designed to be forward-compatible
-- New AI technologies, providers, or paradigms can be integrated
-- The community can propose new provider types via AIP
+Users run OpenClaw as a local AI router with full control.
 
-## Authentication & Provider Priority
-
-The Brain Interface supports multiple authentication methods with automatic fallback. The priority order is determined by availability and reliability.
-
-### MVP Provider Priority
+- Self-hosted LLM via Ollama, vLLM, or any local model
+- OpenClaw routes to cloud APIs (Codex OAuth, Claude, Gemini) or local models
+- Hybrid approach: cloud for hard decisions, local for routine actions
+- Full privacy — prompts never leave the user's machine (with local models)
+- Cost optimization — mix expensive and cheap models strategically
 
 ```
-1st: Claude Code CLI     → Subscription auth, no API key needed, proven in ai-agent-system
-2nd: OpenClaw OAuth      → OpenAI Codex OAuth token (when 429 regression is resolved)
-3rd: API Key             → Direct OPENAI_API_KEY or ANTHROPIC_API_KEY
-4th: Community Nodes     → Future (DePIN network)
+# OpenClaw configuration
+BRAIN_PROVIDER=openclaw
+OPENCLAW_AUTH_FILE=~/.openclaw/agents/main/agent/auth-profiles.json
 ```
 
-### Claude Code CLI (Primary — MVP)
+### Tier 4 — Node Provider (Contributors)
 
-AFW uses the **Claude Code CLI** as the primary brain provider. This is the same pattern used in ai-agent-system where Claude Code powers multiple AI agents 24/7.
+Users contribute GPU to the network and earn $AFW.
 
-**How it works:**
+- Run inference for other agents' Tier 1 (basic brain) requests
+- Earn $AFW rewards proportional to compute contributed
+- Powered by NodeRegistry smart contract
+- As more nodes join, Tier 1 quality improves for everyone
+- Eventually Tier 1 cost approaches zero (community-funded)
+
 ```
-/opt/homebrew/bin/claude -p --output-format json \
-  --model sonnet \
-  --max-turns 1 \
-  --system-prompt "You are an AI agent in Aethermoor..." \
-  "Agent state + situation prompt"
-```
-
-**Why Claude Code CLI:**
-- Already authenticated on the local machine (Claude Pro/Max subscription)
-- No API key or OAuth token management needed
-- No quota/rate limit issues (subscription-based, not API credit-based)
-- Proven in production: ai-agent-system uses `claude-code/sonnet` as primary route
-- Returns structured JSON via `--output-format json`
-- Handles model selection, context, and response formatting
-
-**Reference implementation:** `ai-agent-system/packages/core/lib/llm-fallback.js` → `_callClaudeCode()`
-
-**Runtime profile pattern from ai-agent-system:**
-```javascript
-primary_routes:  ['claude-code/sonnet', 'openai-oauth/gpt-5.4']
-fallback_routes: ['local/qwen2.5-7b', 'google-gemini-cli/gemini-2.5-flash']
+Virtuous cycle:
+  More nodes → Better free brain → More users
+  More users → More demand → More $AFW for nodes
+  More $AFW → More nodes → Even better free brain
 ```
 
-### OpenClaw OAuth (Secondary — when OpenAI 429 is resolved)
+## User Journey
 
-OpenClaw manages OpenAI Codex OAuth tokens. This pattern is battle-tested in ai-agent-system.
-
-**Token flow:**
 ```
-OpenClaw (:18789) → auth-profiles.json → Bearer token → api.openai.com
+Day 1:  "I want to try AFW"        → Tier 1 (free, instant)
+Day 7:  "My agent keeps losing"     → Tier 2 (paste API key, 5 seconds)
+Day 30: "I want full control"       → Tier 3 (OpenClaw self-hosted)
+Day 60: "I want to earn $AFW too"   → Tier 4 (provide GPU as node)
 ```
 
-**Current status:** OpenAI 429 quota regression since March 16, 2026 (OpenClaw #54615). OpenClaw OAuth path is architecturally correct but blocked by OpenAI-side issue. Will activate when resolved.
+## Provider Priority (Fallback Chain)
 
-### API Key (Fallback)
+```
+1st: User's chosen tier (2, 3, or 4)
+2nd: AFW Basic Brain (Tier 1 — always available as fallback)
+```
 
-| Provider | Header | Use Case |
-|----------|--------|----------|
-| OpenAI | `Authorization: Bearer sk-...` | When Claude Code and OpenClaw unavailable |
-| Anthropic | `x-api-key: sk-ant-...` | Direct Anthropic API access |
+If a user's API key fails or OpenClaw is down, the agent automatically falls back to AFW's basic brain. The agent never stops thinking.
 
-### Self-Hosted / Community Nodes
+## Three Agent Roles, Same Interface
 
-No authentication needed — the node operator runs the model directly.
+The Brain Interface powers three different types of agents:
+
+| Agent Type | Purpose | Tier |
+|-----------|---------|------|
+| Game Agent | Explore, fight, trade in Aethermoor | Any (user chooses) |
+| Guardian Agent | Monitor on-chain security + economic analytics | AFW-operated (Tier 2/3) |
+| Contribution Agent | Evaluate contributions via GitHub MCP + on-chain data | AFW-operated (Tier 2/3) |
+
+Same interface, same standard input/output format, different roles. This proves the Brain Interface is truly pluggable.
 
 ## Technical Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│              Agent Runtime                   │
-│                                              │
-│  Agent State ──► Brain Interface ──► Action   │
-│                      │                       │
-│       ┌──────────────┼──────────────┐        │
-│       ▼              ▼              ▼        │
-│  Claude Code    OpenClaw OAuth   API Key     │
-│   CLI (1st)     OpenAI (2nd)    fallback     │
-│       │              │              │        │
-│       └──────────────┼──────────────┘        │
-│                      ▼                       │
-│           Standard Response Format           │
-│         { action, reasoning, confidence }    │
-│                      │                       │
-│                      ▼                       │
-│           OracleGateway (on-chain)           │
-└─────────────────────────────────────────────┘
+                    Brain Interface
+                         │
+         ┌───────────────┼───────────────┐
+         │               │               │
+    Tier 1 (Free)   Tier 2 (API)    Tier 3 (BYOB)    Tier 4 (Node)
+    AFW Basic LLM   User's API Key  OpenClaw Router   Community GPU
+         │               │               │                │
+         └───────────────┼───────────────┘                │
+                         ▼                                │
+              Standard Response Format                    │
+            { action, reasoning, confidence }              │
+                         │                                │
+                         ▼                     ◄──────────┘
+                OracleGateway (on-chain)
 ```
 
 ## Standard Response Format
@@ -159,43 +156,22 @@ All providers must return responses in this format:
 | `dialogue` | string | What the agent says (visible to observers) |
 | `emotion` | string | Emotional state for UI rendering |
 
-## Community Research — OAuth Status (2026-04)
+## Economics
 
-### OpenAI OAuth
-- Codex OAuth officially supported for external tools
-- Known 429 regression since March 16, 2026 (OpenClaw #54615)
-- Multiple projects affected: OpenClaw, term-llm, opencode-openai-codex-auth
-
-### Claude Code
-- Claude Code CLI works as a non-interactive inference endpoint
-- Subscription-based auth avoids API quota issues entirely
-- ai-agent-system uses `claude-code/sonnet` as primary route in production
-
-### AFW Strategy
-Claude Code CLI bypasses the OpenAI 429 issue completely. When OpenAI fixes the regression, OpenClaw OAuth becomes the secondary provider automatically. The Brain Interface's pluggable design means zero code changes needed.
+| Tier | Who Pays | Who Earns |
+|------|----------|-----------|
+| Tier 1 (Free) | AFW infrastructure | — |
+| Tier 2 (API Key) | User pays API provider | — |
+| Tier 3 (OpenClaw) | User pays (cloud or hardware) | — |
+| Tier 4 (Node) | User pays hardware/electricity | Node earns $AFW |
 
 ## On-Chain Verification
 
-### Community Nodes
-Multiple nodes run the same prompt. OracleGateway requires 2/3 consensus on the `action` field before committing to chain. Disagreeing nodes are flagged.
+### Community Nodes (Tier 4)
+Multiple nodes run the same prompt. OracleGateway requires 2/3 consensus on the `action` field before committing to chain.
 
-### CLI / OAuth / API Key / Self-Hosted
-Single-provider responses are hashed and recorded on-chain. The observer (user) is accountable for their provider's output. No consensus required — the user trusts their own AI choice.
-
-## Economics
-
-| Provider | Who Pays | Who Earns |
-|----------|----------|----------|
-| Community Nodes | Nobody (free for user) | Node providers earn $AFW |
-| Claude Code CLI | User pays Claude subscription | — |
-| OpenClaw OAuth / API Key | User pays API provider | — |
-| Self-Hosted | User pays hardware/electricity | — |
-
-## MVP Strategy
-
-Phase 1 (MVP): Claude Code CLI primary + API key fallback.
-Phase 2 (Testnet): Add OpenClaw OAuth (when OpenAI 429 resolved) + community nodes.
-Phase 3 (Growth): Self-hosted providers + future integrations.
+### Tier 1/2/3
+Single-provider responses are hashed and recorded on-chain. The user is accountable for their provider's output.
 
 ---
 
