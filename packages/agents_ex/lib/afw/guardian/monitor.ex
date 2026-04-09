@@ -3,6 +3,7 @@ defmodule AFW.Guardian.Monitor do
   use GenServer
 
   alias AFW.Chain.Client
+  alias AFW.Combat.Stats
   alias AFW.Guardian.Analyzer
   alias AFW.Guardian.Dashboard
 
@@ -19,6 +20,7 @@ defmodule AFW.Guardian.Monitor do
   @impl true
   def handle_info(:poll, state) do
     metrics = Client.soul_metrics()
+    combat = Stats.snapshot()
 
     payload =
       Analyzer.analyze([], %{
@@ -28,11 +30,13 @@ defmodule AFW.Guardian.Monitor do
         agent_count: 3,
         average_level: 1.0,
         wealth_gini: 0.0,
-        combat_count: 0,
-        agent_win_rate: 0.0,
+        combat_count: combat.fight_attempts,
+        agent_win_rate: combat.success_rate,
         death_count: 0,
         treasury_balance: Client.get_treasury_balance(),
-        next_event: "MINI at 1000"
+        next_event: "MINI at 1000",
+        fight_successes: combat.fight_successes,
+        fight_failures: combat.fight_failures
       })
 
     _ = Dashboard.write(payload)

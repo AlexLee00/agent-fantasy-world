@@ -7,7 +7,9 @@ defmodule AFW.Application do
       {Phoenix.PubSub, name: AFW.PubSub},
       {Registry, keys: :unique, name: AFW.AgentRegistry},
       AFWWeb.Endpoint,
+      {AFW.Chain.Cache, []},
       {AFW.Chain.Writer, Application.get_all_env(:afw)},
+      {AFW.Combat.Stats, []},
       {AFW.Simulation.Metrics, []},
       {AFW.Agent.Supervisor, []},
       {AFW.Guardian.Monitor, []}

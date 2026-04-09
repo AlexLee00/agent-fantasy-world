@@ -1,10 +1,13 @@
 defmodule AFW.Agent.Loop do
   @moduledoc "Tick execution for Elixir agents. Mirrors the Python loop using OTP-friendly state transitions."
 
-  alias AFW.Chain.Client
   alias AFW.Brain.PromptBuilder
-  alias AFW.World.Event
+  alias AFW.Chain.Client
+  alias AFW.Economy.Constants
   alias AFW.World.Combat
+  alias AFW.World.Event
+
+  @fight_cooldown_ticks 3
 
   def execute_tick(state) do
     snapshot = Client.snapshot(state.agent_id)
@@ -21,6 +24,7 @@ defmodule AFW.Agent.Loop do
     }
 
     event = Event.generate(context, state.tick_count + 1)
+
     decision =
       case precomputed_decision(context, event, state) do
         {:decided, payload} ->
@@ -44,7 +48,7 @@ defmodule AFW.Agent.Loop do
 
     result =
       case decision["action"] || decision[:action] do
-        "FIGHT" -> Combat.resolve(context, event)
+        "FIGHT" -> fight(context, event)
         "REST" -> rest(context)
         "TRADE" -> trade(context)
         "TALK" -> talk(context, event)
@@ -78,12 +82,9 @@ defmodule AFW.Agent.Loop do
       event.type == :trade -> %{"action" => "TRADE", "target" => "marketplace"}
       event.type == :npc -> %{"action" => "TALK", "target" => event.target}
       event.type == :monster and hp_ratio > 0.7 -> %{"action" => "FIGHT", "target" => event.target}
-      event.type == :trade -> %{"action" => "TRADE", "target" => "marketplace"}
       true -> %{"action" => "EXPLORE", "target" => event.target}
     end
   end
-
-  @fight_cooldown_ticks 3
 
   defp precomputed_decision(context, event, state) do
     hp = get_in(context, [:agent, "stats", "hp"]) || 0
@@ -124,7 +125,6 @@ defmodule AFW.Agent.Loop do
     has_items = context.items != []
     has_npcs = context.npcs != []
 
-    # Cooldown: ticks since last FIGHT
     ticks_since_fight =
       case Enum.reverse(recent) |> Enum.find_index(&(&1.action == "FIGHT")) do
         nil -> 999
@@ -132,7 +132,6 @@ defmodule AFW.Agent.Loop do
       end
 
     fight_cap = fight_cap(state.class_id)
-
     fight_budget_ok = total_recent_fights < fight_cap
 
     class_prefers_caution =
@@ -180,8 +179,68 @@ defmodule AFW.Agent.Loop do
     end
   end
 
-  defp rest(_context) do
-    %{summary: "Rested at the local tavern and recovered stamina off-chain.", status: :resting}
+  defp fight(context, event) do
+    case Combat.resolve(context, event) do
+      %{success?: false, error: reason} ->
+        fallback = explore(context, event)
+        %{summary: "FIGHT failed, fallback to EXPLORE: #{reason}. #{fallback.summary}", status: fallback.status}
+
+      result ->
+        result
+    end
+  end
+
+  defp rest(context) do
+    tavern = Enum.find(context.npcs, &(&1.role == "TAVERN"))
+    potion_id = Client.find_item_type_id(Constants.rest_item_name())
+    soul_balance = Client.get_soul_balance(context.agent["observer"])
+
+    cond do
+      tavern && potion_id ->
+        price_entry = Client.get_npc_price(tavern.npc_id, potion_id)
+
+        cond do
+          not price_entry.available ->
+            offchain_rest(context, tavern.name)
+
+          soul_balance < price_entry.price ->
+            explore_with_reason("REST skipped, insufficient SOUL for #{tavern.name}")
+
+          true ->
+            case Client.buy_from_npc(tavern.npc_id, potion_id) do
+              {:ok, _payload} ->
+                previous_hp = get_in(context, [:agent, "stats", "hp"]) || 0
+                healed_stats = heal_stats(context.agent["stats"])
+
+                case Client.update_agent_state(
+                       context.agent["agentId"],
+                       healed_stats,
+                       0,
+                       context.agent["zoneId"],
+                       Constants.resting_status_id()
+                     ) do
+                  {:ok, _} ->
+                    %{
+                      summary:
+                        "REST #{tavern.name}##{tavern.npc_id} -> HP #{previous_hp}→#{healed_stats["hp"]}, -#{format_soul(price_entry.price)} SOUL",
+                      status: :resting
+                    }
+
+                  {:error, reason} ->
+                    %{
+                      summary: "REST purchase succeeded at #{tavern.name}, but state sync failed: #{reason}",
+                      status: :resting
+                    }
+                end
+
+              {:error, reason} ->
+                explore_with_reason("REST failed at #{tavern.name}: #{reason}")
+            end
+        end
+
+      true ->
+        offchain_rest(context, "camp")
+    end
   end
 
   defp talk(context, event) do
@@ -192,43 +251,128 @@ defmodule AFW.Agent.Loop do
       end
 
     %{
-      summary: "Talked with #{npc_name} and gathered local information off-chain.",
+      summary: "TALK #{npc_name} -> gathered local information off-chain.",
       status: :alive
     }
   end
 
   defp explore(_context, event) do
     %{
-      summary: "Explored toward #{event.target || "the frontier"} and logged the movement off-chain.",
+      summary: "EXPLORE #{event.target || "the frontier"} -> logged movement off-chain.",
       status: :traveling
     }
   end
 
   defp trade(context) do
+    case cheapest_order(context) do
+      order when not is_nil(order) ->
+        soul_balance = Client.get_soul_balance(context.agent["observer"])
+
+        cond do
+          soul_balance < order.price_in_soul ->
+            maybe_list_item(context)
+
+          true ->
+            case Client.fill_market_order(order.order_id) do
+              {:ok, _} ->
+                burned = Float.round(order.price_in_soul * 0.02 / Constants.one_soul(), 2)
+
+                %{
+                  summary:
+                    "TRADE buy item##{order.item_id} via order##{order.order_id} -> filled -#{format_soul(order.price_in_soul)} SOUL (#{burned} burned)",
+                  status: :alive
+                }
+
+              {:error, reason} ->
+                explore_with_reason("TRADE buy failed for order##{order.order_id}: #{reason}")
+            end
+        end
+
+      nil ->
+        maybe_list_item(context)
+    end
+  end
+
+  defp offchain_rest(context, source) do
+    previous_hp = get_in(context, [:agent, "stats", "hp"]) || 0
+    healed_hp = min(previous_hp + 10, get_in(context, [:agent, "stats", "maxHp"]) || previous_hp)
+
+    %{
+      summary: "REST #{source} -> HP #{previous_hp}→#{healed_hp} (off-chain recovery)",
+      status: :resting
+    }
+  end
+
+  defp heal_stats(stats) do
+    max_hp = stats["maxHp"] || stats[:max_hp] || stats[:maxHp] || 0
+    max_mp = stats["maxMp"] || stats[:max_mp] || stats[:maxMp] || 0
+
+    %{
+      "hp" => max_hp,
+      "maxHp" => max_hp,
+      "mp" => max_mp,
+      "maxMp" => max_mp,
+      "attack" => stats["attack"] || stats[:attack] || 0,
+      "defense" => stats["defense"] || stats[:defense] || 0,
+      "speed" => stats["speed"] || stats[:speed] || 0
+    }
+  end
+
+  defp cheapest_order(%{orders: orders, agent: agent}) do
+    observer = String.downcase(agent["observer"] || "")
+
+    foreign_order =
+      orders
+      |> Enum.reject(&(String.downcase(&1.seller || "") == observer))
+      |> Enum.sort_by(& &1.price_in_soul)
+      |> List.first()
+
+    foreign_order ||
+      (orders
+       |> Enum.sort_by(& &1.price_in_soul)
+       |> List.first())
+  end
+
+  defp maybe_list_item(context) do
     case context.items do
       [item | _] ->
-        case Client.create_market_order(item.item_id, 1, 5 * 1_000_000_000_000_000_000) do
+        price_in_soul = trade_price(item)
+
+        case Client.create_market_order(item.item_id, 1, price_in_soul) do
           {:ok, _} ->
-            %{summary: "Listed an item on the marketplace.", status: :alive}
+            %{
+              summary: "TRADE sell #{item.name}##{item.item_id} -> listed #{format_soul(price_in_soul)} SOUL",
+              status: :alive
+            }
 
           {:error, reason} ->
-            %{summary: "Trade was skipped after marketplace rejection: #{reason}", status: :alive}
+            explore_with_reason("TRADE sell failed for #{item.name}: #{reason}")
         end
 
       [] ->
-        case context.orders do
-          [order | _] ->
-            case Client.fill_market_order(order.order_id) do
-              {:ok, _} ->
-                %{summary: "Filled a marketplace order.", status: :alive}
-
-              {:error, reason} ->
-                %{summary: "Order fill was skipped after marketplace rejection: #{reason}", status: :alive}
-            end
-
-          [] ->
-            %{summary: "No valid trade was available.", status: :alive}
-        end
+        %{summary: "No valid trade was available.", status: :alive}
     end
+  end
+
+  defp trade_price(item) do
+    multiplier =
+      case item.tier do
+        1 -> 6
+        2 -> 14
+        _ -> 8
+      end
+
+    multiplier * Constants.one_soul()
+  end
+
+  defp format_soul(amount) when is_integer(amount) do
+    Float.round(amount / Constants.one_soul(), 2)
+  end
+
+  defp explore_with_reason(reason) do
+    %{
+      summary: "#{reason}. Explored the nearby roads instead.",
+      status: :traveling
+    }
   end
 end

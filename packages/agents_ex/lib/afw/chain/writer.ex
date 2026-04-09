@@ -1,8 +1,9 @@
 defmodule AFW.Chain.Writer do
   @moduledoc "Single-process write path that owns nonce management and raw transaction signing."
   use GenServer
+  require Logger
 
-  alias AFW.Chain.{ABI, Contracts, Pool, RLP, Reader}
+  alias AFW.Chain.{ABI, Cache, Contracts, Pool, RLP, Reader}
   alias Ethereumex.HttpClient
 
   @chain_id 84_532
@@ -11,6 +12,9 @@ defmodule AFW.Chain.Writer do
   @gas_padding_bps 1_200
   @approval_padding 10 * 1_000_000_000_000_000_000
   @gas_cache_ttl_ms 60_000
+  @estimate_retry_count 3
+  @estimate_retry_sleep_ms 1_000
+  @combat_fallback_gas_limit 500_000
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -32,6 +36,9 @@ defmodule AFW.Chain.Writer do
 
   def fill_market_order(order_id),
     do: GenServer.call(__MODULE__, {:fill_market_order, order_id}, 120_000)
+
+  def update_agent_state(agent_id, stats, exp_gained, zone_id, status_id),
+    do: GenServer.call(__MODULE__, {:update_agent_state, agent_id, stats, exp_gained, zone_id, status_id}, 120_000)
 
   def register_item_type(name, category, tier, min_stat, max_stat, tradeable) do
     GenServer.call(
@@ -104,6 +111,7 @@ defmodule AFW.Chain.Writer do
   def handle_call({:resolve_combat, agent_id, monster_id}, _from, state) do
     {reply, next_state} =
       attempt_write(state, fn state ->
+        ensure_combat_ready!(agent_id, monster_id)
         submit_contract_transaction(:combat_resolver, "resolveCombat", [agent_id, monster_id], state)
       end)
 
@@ -142,6 +150,20 @@ defmodule AFW.Chain.Writer do
         if not active, do: raise("Order #{order_id} is not active")
         {_, state} = ensure_soul_allowance(:marketplace, price_in_soul, state)
         submit_contract_transaction(:marketplace, "fillOrder", [order_id], state)
+      end)
+
+    {:reply, reply, next_state}
+  end
+
+  def handle_call({:update_agent_state, agent_id, stats, exp_gained, zone_id, status_id}, _from, state) do
+    {reply, next_state} =
+      attempt_write(state, fn state ->
+        submit_contract_transaction(
+          :agent_registry,
+          "updateAgentState",
+          [agent_id, encode_stats(stats), exp_gained, zone_id, status_id],
+          state
+        )
       end)
 
     {:reply, reply, next_state}
@@ -297,6 +319,8 @@ defmodule AFW.Chain.Writer do
           raise "Transaction #{tx_hash} reverted"
         end
 
+        invalidate_related_cache(contract_key, function_name, args)
+
         payload = %{
           contract: contract_key,
           function: function_name,
@@ -353,7 +377,7 @@ defmodule AFW.Chain.Writer do
         {gas_limit, state}
 
       _ ->
-        case Pool.request(fn url -> HttpClient.eth_estimate_gas(tx, [url: url]) end) do
+        case estimate_gas_with_retry(tx, cache_key) do
           {:ok, quantity_hex} ->
             gas_limit =
               quantity_to_integer(quantity_hex)
@@ -366,7 +390,40 @@ defmodule AFW.Chain.Writer do
             }
 
           {:error, reason} ->
-            raise "eth_estimateGas failed: #{inspect(reason)}"
+            if fixed_gas_fallback?(cache_key) do
+              Logger.warning(
+                "estimateGas fallback for #{inspect(cache_key)} after retries: #{inspect(reason)} -> #{@combat_fallback_gas_limit}"
+              )
+
+              {
+                @combat_fallback_gas_limit,
+                put_in(
+                  state.gas_cache[cache_key],
+                  %{gas_limit: @combat_fallback_gas_limit, expires_at: now + @gas_cache_ttl_ms}
+                )
+              }
+            else
+              raise "eth_estimateGas failed: #{inspect(reason)}"
+            end
+        end
+    end
+  end
+
+  defp estimate_gas_with_retry(tx, cache_key, attempts_left \\ @estimate_retry_count)
+
+  defp estimate_gas_with_retry(tx, cache_key, attempts_left) when attempts_left > 0 do
+    case Pool.request(fn url -> HttpClient.eth_estimate_gas(tx, [url: url]) end) do
+      {:ok, quantity_hex} ->
+        {:ok, quantity_hex}
+
+      {:error, reason} ->
+        if retryable_estimate_error?(reason) and attempts_left > 1 do
+          retry_count = @estimate_retry_count - attempts_left + 1
+          Logger.warning("estimateGas retry #{retry_count} for #{inspect(cache_key)} after #{inspect(reason)}")
+          Process.sleep(@estimate_retry_sleep_ms)
+          estimate_gas_with_retry(tx, cache_key, attempts_left - 1)
+        else
+          {:error, reason}
         end
     end
   end
@@ -449,5 +506,74 @@ defmodule AFW.Chain.Writer do
       error ->
         {{:error, Exception.message(error)}, %{state | next_nonce: fetch_nonce_from_chain(state.account_address)}}
     end
+  end
+
+  defp invalidate_related_cache(:combat_resolver, "resolveCombat", _args) do
+    Cache.invalidate_prefix(:monsters)
+    Cache.invalidate(:treasury)
+  end
+
+  defp invalidate_related_cache(:npc_registry, "buyFromNPC", _args) do
+    Cache.invalidate_prefix(:npcs)
+  end
+
+  defp invalidate_related_cache(:marketplace, "createOrder", _args) do
+    Cache.invalidate(:orders)
+  end
+
+  defp invalidate_related_cache(:marketplace, "fillOrder", _args) do
+    Cache.invalidate(:orders)
+  end
+
+  defp invalidate_related_cache(:marketplace, "fillOrderAFW", _args) do
+    Cache.invalidate(:orders)
+  end
+
+  defp invalidate_related_cache(:monster_registry, "spawnMonster", _args) do
+    Cache.invalidate_prefix(:monsters)
+  end
+
+  defp invalidate_related_cache(:npc_registry, "spawnNPC", _args) do
+    Cache.invalidate_prefix(:npcs)
+  end
+
+  defp invalidate_related_cache(:npc_registry, "setPrice", _args) do
+    Cache.invalidate_prefix(:npcs)
+  end
+
+  defp invalidate_related_cache(_contract_key, _function_name, _args), do: :ok
+
+  defp ensure_combat_ready!(agent_id, monster_id) do
+    agent = Reader.get_agent(agent_id)
+
+    unless agent["statusId"] == 1 or agent["statusName"] in ["ALIVE", "STATUS_1"] do
+      raise "Combat precheck failed: agent #{agent_id} is not alive"
+    end
+
+    case Reader.call_contract(:monster_registry, "getMonster", [monster_id]) do
+      [{_, hp, _, _, _, _, alive}] when alive and hp > 0 -> :ok
+      [monster_tuple] -> validate_monster_tuple!(monster_id, monster_tuple)
+      _ -> raise "Combat precheck failed: monster #{monster_id} unavailable"
+    end
+  end
+
+  defp validate_monster_tuple!(_monster_id, {_, hp, _, _, _, _, alive}) when alive and hp > 0, do: :ok
+  defp validate_monster_tuple!(monster_id, _), do: raise("Combat precheck failed: monster #{monster_id} is not alive")
+
+  defp fixed_gas_fallback?({:combat_resolver, "resolveCombat"}), do: true
+  defp fixed_gas_fallback?(_), do: false
+
+  defp retryable_estimate_error?(reason) do
+    reason
+    |> inspect()
+    |> String.contains?("521")
+  end
+
+  defp encode_stats(%{"hp" => hp, "maxHp" => max_hp, "mp" => mp, "maxMp" => max_mp, "attack" => attack, "defense" => defense, "speed" => speed}) do
+    [hp, max_hp, mp, max_mp, attack, defense, speed]
+  end
+
+  defp encode_stats(%{hp: hp, max_hp: max_hp, mp: mp, max_mp: max_mp, attack: attack, defense: defense, speed: speed}) do
+    [hp, max_hp, mp, max_mp, attack, defense, speed]
   end
 end

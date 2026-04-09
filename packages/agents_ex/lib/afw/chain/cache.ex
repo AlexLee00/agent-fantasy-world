@@ -1,7 +1,18 @@
 defmodule AFW.Chain.Cache do
   @moduledoc "Small ETS TTL cache for repeated chain reads."
+  use GenServer
 
   @table :afw_chain_cache
+
+  def start_link(_opts) do
+    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
+  end
+
+  @impl true
+  def init(state) do
+    ensure_table!()
+    {:ok, state}
+  end
 
   def get_or_fetch(key, ttl_ms, fetch_fn) when is_function(fetch_fn, 0) do
     ensure_table!()

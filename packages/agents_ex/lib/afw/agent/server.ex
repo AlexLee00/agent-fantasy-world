@@ -53,7 +53,7 @@ defmodule AFW.Agent.Server do
     summary = (new_state.last_action || %{})[:summary] || "-"
 
     Logger.info(
-      "tick=#{new_state.tick_count} agent=#{new_state.agent_id} label=#{new_state.label} action=#{action} target=#{target} duration_ms=#{duration_ms} summary=\"#{summary}\""
+      "[tick #{new_state.tick_count}] Agent##{new_state.agent_id} #{action} #{target} duration=#{duration_ms}ms summary=\"#{summary}\""
     )
 
     Metrics.record_tick(%{

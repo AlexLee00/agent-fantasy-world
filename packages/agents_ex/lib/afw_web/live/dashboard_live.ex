@@ -11,6 +11,7 @@ defmodule AFWWeb.DashboardLive do
     {:ok,
      assign(socket,
        agents: [],
+       combat: AFW.Combat.Stats.snapshot(),
        guardian: %{},
        title: "AFW Dashboard"
      )}
@@ -30,6 +31,10 @@ defmodule AFWWeb.DashboardLive do
     {:noreply, assign(socket, guardian: payload)}
   end
 
+  def handle_info({:combat_stats, payload}, socket) do
+    {:noreply, assign(socket, combat: payload)}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -44,6 +49,15 @@ defmodule AFWWeb.DashboardLive do
       </div>
 
       <h2>Guardian</h2>
+      <div style="padding:12px;margin-bottom:16px;border-radius:14px;background:#f6fff7;border:1px solid #d9ead7;">
+        <strong>Combat Success</strong>
+        <div>
+          Attempts: <%= @combat[:fight_attempts] || @combat["fight_attempts"] || 0 %>
+          · Successes: <%= @combat[:fight_successes] || @combat["fight_successes"] || 0 %>
+          · Failures: <%= @combat[:fight_failures] || @combat["fight_failures"] || 0 %>
+          · Rate: <%= ((@combat[:success_rate] || @combat["success_rate"] || 0.0) * 100) |> Float.round(2) %>%
+        </div>
+      </div>
       <pre><%= Jason.encode_to_iodata!(@guardian, pretty: true) |> IO.iodata_to_binary() %></pre>
     </section>
     """

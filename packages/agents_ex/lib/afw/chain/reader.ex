@@ -27,6 +27,7 @@ defmodule AFW.Chain.Reader do
   @npc_ttl 30_000
   @orders_ttl 5_000
   @treasury_ttl 5_000
+  @item_lookup_ttl 60_000
   def tracked_contracts, do: @tracked_contracts
 
   def snapshot(agent_id) do
@@ -180,6 +181,37 @@ defmodule AFW.Chain.Reader do
     end)
   rescue
     _ -> []
+  end
+
+  def get_soul_balance(address) do
+    call_uint(:soul_token, "balanceOf", [normalize_address(address || account_address())])
+  rescue
+    _ -> 0
+  end
+
+  def get_npc_price(npc_id, item_id) do
+    case call_contract(:npc_registry, "npcPrices", [npc_id, item_id]) do
+      [entry] -> parse_npc_price(entry, item_id)
+      [item_key, price, available] -> %{item_id: item_key, price: price, available: available}
+      _ -> %{item_id: item_id, price: 0, available: false}
+    end
+  rescue
+    _ -> %{item_id: item_id, price: 0, available: false}
+  end
+
+  def find_item_type_id(name) do
+    Cache.get_or_fetch({:item_type_id, name}, @item_lookup_ttl, fn ->
+      total = call_uint(:item_registry, "totalItemTypes", [])
+
+      Enum.find_value(1..total, fn item_id ->
+        case call_contract(:item_registry, "itemTypes", [item_id]) do
+          [^name, _, _, _, _, _, _] -> item_id
+          _ -> nil
+        end
+      end)
+    end)
+  rescue
+    _ -> nil
   end
 
   def get_treasury_balance do
@@ -372,6 +404,18 @@ defmodule AFW.Chain.Reader do
       "defense" => defense,
       "speed" => speed
     }
+  end
+
+  defp parse_npc_price({item_id, price, available}, _fallback_item_id) do
+    %{item_id: item_id, price: price, available: available}
+  end
+
+  defp parse_npc_price([item_id, price, available], _fallback_item_id) do
+    %{item_id: item_id, price: price, available: available}
+  end
+
+  defp parse_npc_price(_, fallback_item_id) do
+    %{item_id: fallback_item_id, price: 0, available: false}
   end
 
   defp decode_hex_key!("0x" <> hex), do: Base.decode16!(hex, case: :mixed)
