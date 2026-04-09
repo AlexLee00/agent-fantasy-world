@@ -8,12 +8,19 @@ defmodule AFW.World.Combat do
       get_in(event.metadata || %{}, [:monster_id]) ||
         get_in(event.metadata || %{}, ["monster_id"]) || 1
 
-    {:ok, payload} = Client.resolve_combat(context.agent["agentId"], monster_id)
+    case Client.resolve_combat(context.agent["agentId"], monster_id) do
+      {:ok, payload} ->
+        %{
+          summary: "Combat resolved on-chain via CombatResolver (#{payload.tx_hash}).",
+          status: :alive,
+          tx_hash: payload.tx_hash
+        }
 
-    %{
-      summary: "Combat resolved on-chain via CombatResolver (#{payload.tx_hash}).",
-      status: :alive,
-      tx_hash: payload.tx_hash
-    }
+      {:error, reason} ->
+        %{
+          summary: "Combat action was skipped after an on-chain revert: #{reason}",
+          status: :alive
+        }
+    end
   end
 end

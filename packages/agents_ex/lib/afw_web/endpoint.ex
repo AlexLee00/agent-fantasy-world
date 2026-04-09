@@ -1,8 +1,13 @@
 defmodule AFWWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :afw
+  @session_options [
+    store: :cookie,
+    key: "_afw_key",
+    signing_salt: "afw-liveview"
+  ]
 
   socket("/live", Phoenix.LiveView.Socket,
-    websocket: true,
+    websocket: [connect_info: [session: @session_options]],
     longpoll: false
   )
 
@@ -24,5 +29,6 @@ defmodule AFWWeb.Endpoint do
 
   plug(Plug.MethodOverride)
   plug(Plug.Head)
+  plug(Plug.Session, @session_options)
   plug(AFWWeb.Router)
 end

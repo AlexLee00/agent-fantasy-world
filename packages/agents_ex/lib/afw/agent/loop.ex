@@ -24,9 +24,15 @@ defmodule AFW.Agent.Loop do
     prompt = PromptBuilder.build(context, event)
 
     decision =
-      case state.brain_module.decide(%{prompt: prompt, context: context, event: event}) do
-        {:ok, payload} -> payload
-        {:error, _reason} -> fallback_decision(context, event)
+      try do
+        case state.brain_module.decide(%{prompt: prompt, context: context, event: event}) do
+          {:ok, payload} -> payload
+          {:error, _reason} -> fallback_decision(context, event)
+        end
+      rescue
+        _ -> fallback_decision(context, event)
+      catch
+        :exit, _ -> fallback_decision(context, event)
       end
 
     result =

@@ -1,6 +1,7 @@
 defmodule AFW.Agent.Server do
   @moduledoc "One GenServer per autonomous AFW agent."
   use GenServer
+  require Logger
 
   alias AFW.Agent.State
   alias AFW.Agent.Loop
@@ -37,12 +38,15 @@ defmodule AFW.Agent.Server do
     }
 
     schedule_tick(state.tick_interval)
+    Logger.info("Started AFW agent #{state.label || "Agent"} class=#{state.class_id} on-chain agentId=#{inspect(state.agent_id)}")
     {:ok, state}
   end
 
   @impl true
   def handle_info(:tick, state) do
     new_state = Loop.execute_tick(state)
+    action = (new_state.last_action || %{})[:action] || "IDLE"
+    Logger.info("Agent ##{new_state.agent_id} tick=#{new_state.tick_count} action=#{action}")
 
     Phoenix.PubSub.broadcast(
       AFW.PubSub,

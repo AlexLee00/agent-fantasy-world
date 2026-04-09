@@ -32,8 +32,10 @@ defmodule AFW.Application do
   end
 
   defp boot_defaults do
-    Enum.each(Application.fetch_env!(:afw, :default_agents), fn attrs ->
-      AFW.Agent.Supervisor.start_agent(attrs)
-    end)
+    unless System.get_env("AFW_DISABLE_BOOT_AGENTS") in ["1", "true", "TRUE"] do
+      Enum.each(Application.fetch_env!(:afw, :default_agents), fn attrs ->
+        AFW.Agent.Supervisor.start_agent(attrs)
+      end)
+    end
   end
 end
