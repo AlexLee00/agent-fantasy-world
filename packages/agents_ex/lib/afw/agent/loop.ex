@@ -317,6 +317,7 @@ defmodule AFW.Agent.Loop do
               priority: :batch,
               agent_id: context.agent["agentId"],
               data: %{
+                agent_id: context.agent["agentId"],
                 mode: :buy,
                 order_id: order.order_id,
                 soul_changes: [%{agent_id: context.agent["agentId"], delta: -order.price_in_soul}],
@@ -380,6 +381,7 @@ defmodule AFW.Agent.Loop do
           priority: :batch,
           agent_id: context.agent["agentId"],
           data: %{
+            agent_id: context.agent["agentId"],
             mode: :sell,
             item_id: item.item_id,
             amount: 1,

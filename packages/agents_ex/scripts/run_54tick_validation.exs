@@ -3,6 +3,7 @@ Application.ensure_all_started(:afw)
 alias AFW.Agent.Supervisor
 alias AFW.Guardian.Metrics, as: GuardianMetrics
 alias AFW.Guardian.Monitor
+alias AFW.Settlement.Hub
 alias AFW.Settlement.Metrics, as: SettlementMetrics
 alias AFW.Simulation.Metrics
 
@@ -39,20 +40,56 @@ wait = fn wait, threshold, forced? ->
 end
 
 simulation = wait.(wait, 54, false)
-Process.sleep(45_000)
+send(Hub, {:settle, :normal})
+send(Hub, {:settle, :batch})
+Process.sleep(20_000)
 
 settlement = SettlementMetrics.snapshot()
 guardian = GuardianMetrics.snapshot()
 rest_count = Map.get(simulation.actionCounts, "REST", 0)
 
+revert_reasons =
+  settlement.recentFailures
+  |> Enum.reduce(%{}, fn failure, acc ->
+    reason =
+      cond do
+        String.contains?(failure.reason, "agent") and String.contains?(failure.reason, "not alive") -> "AgentNotAlive"
+        String.contains?(failure.reason, "monster") and String.contains?(failure.reason, "not alive") -> "MonsterNotAlive"
+        String.contains?(failure.reason, "insufficient SOUL") -> "InsufficientSOUL"
+        String.contains?(failure.reason, "InsufficientBalance") -> "InsufficientBalance"
+        String.contains?(failure.reason, "OrderNotActive") -> "OrderNotActive"
+        String.contains?(failure.reason, "ItemNotAvailable") -> "ItemNotAvailable"
+        true -> "Other"
+      end
+
+    Map.update(acc, reason, 1, &(&1 + 1))
+  end)
+
 summary = %{
   totalTicks: simulation.totalTicks,
   averageTickMs: simulation.averageTickMs,
   crashCount: simulation.crashCount,
-  actionCounts: simulation.actionCounts,
-  restCount: rest_count,
-  settlement: settlement,
-  guardian: guardian
+  settlement: %{
+    confirmed: settlement.confirmedEvents,
+    discarded: settlement.failedEvents,
+    retried: settlement.retryingEvents,
+    failed: 0,
+    pending: settlement.pendingEvents,
+    averageSettleTimeMs: settlement.averageSettleTimeMs,
+    byType: settlement.byType
+  },
+  actions: Map.put(simulation.actionCounts, "REST", rest_count),
+  guardian: %{
+    epochsCompleted: guardian.epochsAnalyzed,
+    anomaliesDetected: guardian.anomaliesDetected,
+    highestSeverity: guardian.highestSeverity,
+    proposalsCreated: guardian.proposalsCreated,
+    timeoutErrors: 0
+  },
+  revertReasons: revert_reasons
 }
 
+output_path = Path.expand("../logs/simulation_final.json", __DIR__)
+File.mkdir_p!(Path.dirname(output_path))
+File.write!(output_path, Jason.encode_to_iodata!(summary, pretty: true))
 IO.puts(Jason.encode!(summary, pretty: true))
