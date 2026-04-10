@@ -1,10 +1,10 @@
 defmodule AFW.Guardian.Economics do
   @moduledoc "Computes economic metrics from on-chain reads plus optimistic settlement state."
 
+  require Logger
+
   alias AFW.Chain.Client
   alias AFW.Combat.Stats
-  alias AFW.Settlement.{Hub, State}
-
   @thresholds [
     %{amount: 1_000 * 1_000_000_000_000_000_000, type: "MINI"},
     %{amount: 5_000 * 1_000_000_000_000_000_000, type: "ZONE"},
@@ -12,12 +12,30 @@ defmodule AFW.Guardian.Economics do
   ]
 
   def snapshot do
-    metrics = Client.soul_metrics()
-    combat = Stats.snapshot()
-    treasury_balance = Client.get_treasury_balance()
-    display_balances = display_balances()
-    orders = Client.active_orders()
-    queued = Hub.queued_events()
+    queued = queued_events()
+    optimistic = optimistic_balances()
+    tasks = [
+      Task.async(fn -> {:soul_metrics, Client.soul_metrics()} end),
+      Task.async(fn -> {:combat, Stats.snapshot()} end),
+      Task.async(fn -> {:treasury_balance, Client.get_treasury_balance()} end),
+      Task.async(fn -> {:orders, Client.active_orders()} end)
+    ]
+
+    results =
+      Task.yield_many(tasks, 10_000)
+      |> Enum.map(fn {task, result} ->
+        case result || Task.shutdown(task, :brutal_kill) do
+          {:ok, value} -> value
+          _ -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Map.new()
+
+    metrics = Map.get(results, :soul_metrics, %{total_minted: 0, total_burned: 0, total_supply: 0})
+    combat = Map.get(results, :combat, %{fight_attempts: 0, fight_successes: 0, fight_failures: 0, success_rate: 0.0})
+    treasury_balance = Map.get(results, :treasury_balance, 0)
+    orders = Map.get(results, :orders, [])
 
     snapshot = %{
       soul: %{
@@ -25,10 +43,10 @@ defmodule AFW.Guardian.Economics do
         total_burned: metrics.total_burned,
         circulating: metrics.total_supply,
         inflation_rate: inflation_rate(metrics),
-        balances: display_balances
+        balances: optimistic
       },
       wealth: %{
-        gini: gini(display_balances)
+        gini: gini(optimistic)
       },
       combat: %{
         total_fights: combat.fight_attempts,
@@ -50,7 +68,7 @@ defmodule AFW.Guardian.Economics do
     snapshot
   end
 
-  def treasury_view(balance, queued \\ Hub.queued_events()) do
+  def treasury_view(balance, queued \\ queued_events()) do
     next_threshold =
       Enum.find(@thresholds, List.last(@thresholds), fn threshold ->
         balance < threshold.amount
@@ -72,20 +90,27 @@ defmodule AFW.Guardian.Economics do
     }
   end
 
-  defp display_balances do
-    State.all_agent_ids()
-    |> Enum.map(fn agent_id ->
-      agent = Client.get_agent(agent_id)
-      {display_total, pending} = State.display_soul(agent_id)
+  defp optimistic_balances do
+    case :ets.whereis(:optimistic_state) do
+      :undefined ->
+        []
 
-      %{
-        agent_id: agent_id,
-        wallet: agent["observer"],
-        confirmed: State.confirmed_soul(agent_id),
-        pending: pending,
-        total: display_total
-      }
-    end)
+      _ ->
+        :ets.tab2list(:optimistic_state)
+        |> Enum.map(fn {agent_id, state} ->
+          agent = Client.get_agent(agent_id)
+          confirmed = Map.get(state, :confirmed_soul, Client.get_soul_balance(agent["observer"]))
+          pending = Map.get(state, :optimistic_delta, 0)
+
+          %{
+            agent_id: agent_id,
+            wallet: agent["observer"],
+            confirmed: confirmed,
+            pending: pending,
+            total: confirmed + pending
+          }
+        end)
+    end
   end
 
   defp inflation_rate(%{total_supply: 0}), do: 0.0
@@ -137,15 +162,8 @@ defmodule AFW.Guardian.Economics do
   end
 
   defp log_snapshot(snapshot) do
-    top =
-      snapshot.soul.balances
-      |> Enum.max_by(& &1.total, fn -> %{agent_id: nil, total: 0} end)
-
-    bottom =
-      snapshot.soul.balances
-      |> Enum.min_by(& &1.total, fn -> %{agent_id: nil, total: 0} end)
-
-    require Logger
+    top = snapshot.soul.balances |> Enum.max_by(& &1.total, fn -> %{agent_id: nil, total: 0} end)
+    bottom = snapshot.soul.balances |> Enum.min_by(& &1.total, fn -> %{agent_id: nil, total: 0} end)
 
     Logger.info(
       "[economics] SOUL: minted=#{snapshot.soul.total_minted} burned=#{snapshot.soul.total_burned} circulating=#{snapshot.soul.circulating} inflation=#{Float.round(snapshot.soul.inflation_rate * 100, 2)}%"
@@ -158,5 +176,12 @@ defmodule AFW.Guardian.Economics do
     Logger.info(
       "[economics] Treasury: #{snapshot.treasury.balance} SOUL (next: #{snapshot.treasury.next_threshold} at #{snapshot.treasury.next_threshold_amount})"
     )
+  end
+
+  defp queued_events do
+    case :ets.whereis(:event_queue) do
+      :undefined -> []
+      _ -> :ets.tab2list(:event_queue) |> Enum.map(fn {_key, event} -> event end)
+    end
   end
 end

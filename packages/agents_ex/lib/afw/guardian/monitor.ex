@@ -38,7 +38,7 @@ defmodule AFW.Guardian.Monitor do
 
   @impl true
   def handle_info(:epoch, state) do
-    queued = Hub.queued_events()
+    queued = Hub.queued_events_snapshot()
     economics = Economics.snapshot()
     events = Enum.reverse(state.epoch_events) ++ mismatch_events(state.mismatches)
     ai_analysis = brain_analysis(events, economics)

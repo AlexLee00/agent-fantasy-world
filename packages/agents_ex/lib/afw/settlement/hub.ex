@@ -18,6 +18,12 @@ defmodule AFW.Settlement.Hub do
 
   def submit_event(event), do: GenServer.cast(__MODULE__, {:submit, event})
   def queued_events, do: GenServer.call(__MODULE__, :queued_events)
+  def queued_events_snapshot do
+    case :ets.whereis(@queue) do
+      :undefined -> []
+      _ -> :ets.tab2list(@queue) |> Enum.map(fn {_key, event} -> event end)
+    end
+  end
 
   @impl true
   def init(_state) do

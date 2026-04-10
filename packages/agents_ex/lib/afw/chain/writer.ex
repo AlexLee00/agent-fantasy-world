@@ -343,6 +343,14 @@ defmodule AFW.Chain.Writer do
         {contract_key, function_name}
       )
 
+    case dry_run_transaction(state.account_address, to, data, quantity(0)) do
+      :ok ->
+        :ok
+
+      {:revert, reason} ->
+        raise "Transaction dry run reverted: #{reason}"
+    end
+
     raw_tx =
       build_and_sign_eip1559_tx(
         chain_id,
@@ -495,6 +503,41 @@ defmodule AFW.Chain.Writer do
 
   defp wait_for_receipt!(tx_hash, _state, 0) do
     raise "Timed out waiting for receipt #{tx_hash}"
+  end
+
+  defp dry_run_transaction(from, to, data, value) do
+    tx = %{"from" => from, "to" => to, "data" => data, "value" => value}
+
+    case Pool.request(fn url -> HttpClient.eth_call(tx, "latest", [url: url]) end) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        case extract_revert_reason(reason) do
+          nil -> :ok
+          revert_reason ->
+            Logger.error("[writer] revert reason: #{revert_reason}")
+            {:revert, revert_reason}
+        end
+    end
+  end
+
+  defp extract_revert_reason(%{"data" => "0x" <> _ = data}), do: ABI.decode_revert(data)
+  defp extract_revert_reason(%{"message" => message}), do: message
+  defp extract_revert_reason(reason) do
+    text = inspect(reason)
+
+    cond do
+      String.contains?(text, "AgentNotAlive") -> "AgentNotAlive"
+      String.contains?(text, "MonsterNotAlive") -> "MonsterNotAlive"
+      String.contains?(text, "InsufficientBalance") -> "InsufficientBalance"
+      String.contains?(text, "InsufficientSOUL") -> "InsufficientSOUL"
+      String.contains?(text, "OrderNotActive") -> "OrderNotActive"
+      String.contains?(text, "ItemNotAvailable") -> "ItemNotAvailable"
+      String.contains?(text, "Unauthorized") -> "Unauthorized"
+      String.contains?(text, "revert") -> text
+      true -> nil
+    end
   end
 
   defp build_and_sign_eip1559_tx(chain_id, nonce, max_priority_fee, max_fee, gas_limit, to, value, data, private_key) do

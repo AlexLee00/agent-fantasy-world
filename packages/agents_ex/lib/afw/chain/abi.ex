@@ -44,6 +44,23 @@ defmodule AFW.Chain.ABI do
     ABI.decode(selector, decode_hex!(result), :output)
   end
 
+  def decode_revert("0x08c379a0" <> payload_hex) do
+    payload = Base.decode16!(payload_hex, case: :mixed)
+
+    try do
+      [reason] = ABI.TypeDecoder.decode_raw(payload, [{:string}])
+      reason
+    rescue
+      _ -> "Error(string)"
+    end
+  end
+
+  def decode_revert("0x" <> <<selector::binary-size(8), _rest::binary>>) do
+    "CustomError(0x#{selector})"
+  end
+
+  def decode_revert(value), do: inspect(value)
+
   def decode_hex!("0x" <> hex), do: Base.decode16!(hex, case: :mixed)
   def decode_hex!(hex), do: Base.decode16!(hex, case: :mixed)
 

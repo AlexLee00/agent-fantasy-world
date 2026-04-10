@@ -173,7 +173,7 @@ defmodule AFW.Settlement.State do
     Enum.reduce(changes, offchain, fn change, acc ->
       field = to_string(change[:field] || change["field"])
       value = change[:value] || change["value"]
-      Map.put(acc, field, value)
+      put_offchain_field(acc, field, value)
     end)
   end
 
@@ -195,7 +195,22 @@ defmodule AFW.Settlement.State do
   end
 
   defp merge_offchain(agent, offchain) do
-    Enum.reduce(offchain, agent, fn {field, value}, acc -> Map.put(acc, field, value) end)
+    Enum.reduce(offchain, agent, fn
+      {{:stats, field}, value}, acc ->
+        stats = Map.get(acc, "stats", %{}) |> Map.put(field, value)
+        Map.put(acc, "stats", stats)
+
+      {field, value}, acc ->
+        Map.put(acc, field, value)
+    end)
+  end
+
+  defp put_offchain_field(acc, field, value) when field in ["hp", "maxHp", "mp", "maxMp", "attack", "defense", "speed"] do
+    Map.put(acc, {:stats, field}, value)
+  end
+
+  defp put_offchain_field(acc, field, value) do
+    Map.put(acc, field, value)
   end
 
   defp put_state(agent_id, state) do

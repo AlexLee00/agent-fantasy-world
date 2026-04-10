@@ -50,7 +50,7 @@ defmodule AFW.Brain.PromptBuilder do
     HP ratio: #{Float.round(hp_ratio * 100.0, 1)}%
     #{injury_guidance(hp_ratio)}
     Hard rules:
-    - If HP is 50% or lower, choose REST unless there is no safe option.
+    - If HP is 70% or lower, strongly prefer REST unless there is no safe option.
     - If HP is below 30%, you MUST REST at a tavern or safest available shelter.
     - Only choose FIGHT when HP is above 70% and the monster looks manageable.
     - If you have tradeable items, consider TRADE before another fight.
@@ -79,11 +79,11 @@ defmodule AFW.Brain.PromptBuilder do
     |> Enum.join(", ")
   end
 
-  defp injury_guidance(hp_ratio) when hp_ratio < 0.3,
-    do: "You are critically wounded. You MUST rest."
+  defp injury_guidance(hp_ratio) when hp_ratio < 0.4,
+    do: "You are critically wounded. You MUST rest immediately."
 
-  defp injury_guidance(hp_ratio) when hp_ratio < 0.5,
-    do: "You are injured. Rest at the tavern."
+  defp injury_guidance(hp_ratio) when hp_ratio < 0.7,
+    do: "Your wounds need attention. Visit the tavern to rest."
 
   defp injury_guidance(_), do: ""
 end

@@ -29,24 +29,30 @@ defmodule AFW.Agent.Loop do
     event = Event.generate(context, state.tick_count + 1)
 
     decision =
-      case precomputed_decision(context, event, state) do
+      case forced_decision(context, state) do
         {:decided, payload} ->
           payload
 
         :continue ->
-          prompt = PromptBuilder.build(context, event)
+          case precomputed_decision(context, event, state) do
+            {:decided, payload} ->
+              payload
 
-          try do
-            case state.brain_module.decide(%{prompt: prompt, context: context, event: event}) do
-              {:ok, payload} -> payload
-              {:error, _reason} -> fallback_decision(context, event)
-            end
-          rescue
-            _ -> fallback_decision(context, event)
-          catch
-            :exit, _ -> fallback_decision(context, event)
+            :continue ->
+              prompt = PromptBuilder.build(context, event)
+
+              try do
+                case state.brain_module.decide(%{prompt: prompt, context: context, event: event}) do
+                  {:ok, payload} -> payload
+                  {:error, _reason} -> fallback_decision(context, event)
+                end
+              rescue
+                _ -> fallback_decision(context, event)
+              catch
+                :exit, _ -> fallback_decision(context, event)
+              end
+              |> normalize_decision(context, event, state)
           end
-          |> normalize_decision(context, event, state)
       end
 
     result =
@@ -57,6 +63,14 @@ defmodule AFW.Agent.Loop do
         "TALK" -> talk(context, event)
         "USE_ITEM" -> %{summary: "Used an item from inventory.", status: :alive}
         _ -> explore(context, event)
+      end
+
+    next_cooldown =
+      case decision["action"] || decision[:action] do
+        "FIGHT" -> 2
+        "REST" -> 0
+        _ when state.post_combat_cooldown > 0 -> max(state.post_combat_cooldown - 1, 0)
+        _ -> state.post_combat_cooldown
       end
 
     history_entry = %{
@@ -71,8 +85,22 @@ defmodule AFW.Agent.Loop do
       state
       | tick_count: state.tick_count + 1,
         history: (state.history || []) ++ [history_entry],
-        last_action: history_entry
+        last_action: history_entry,
+        post_combat_cooldown: next_cooldown
     }
+  end
+
+  defp forced_decision(context, state) do
+    hp = get_in(context, [:agent, "stats", "hp"]) || 0
+    max_hp = max(get_in(context, [:agent, "stats", "maxHp"]) || 1, 1)
+
+    cond do
+      state.post_combat_cooldown > 0 and hp < max_hp ->
+        {:decided, %{"action" => "REST", "target" => "tavern"}}
+
+      true ->
+        :continue
+    end
   end
 
   defp fallback_decision(context, event) do
@@ -81,7 +109,7 @@ defmodule AFW.Agent.Loop do
     hp_ratio = hp / max_hp
 
     cond do
-      hp_ratio <= 0.5 or event.type == :survival -> %{"action" => "REST", "target" => "tavern"}
+      hp_ratio <= 0.7 or event.type == :survival -> %{"action" => "REST", "target" => "tavern"}
       event.type == :trade -> %{"action" => "TRADE", "target" => "marketplace"}
       event.type == :npc -> %{"action" => "TALK", "target" => event.target}
       event.type == :monster and hp_ratio > 0.7 -> %{"action" => "FIGHT", "target" => event.target}
@@ -98,7 +126,7 @@ defmodule AFW.Agent.Loop do
     talk_count = Enum.count(Enum.take(recent, -5), &(&1.action == "TALK"))
 
     cond do
-      hp_ratio <= 0.5 ->
+      hp_ratio <= 0.7 ->
         {:decided, %{"action" => "REST", "target" => "tavern"}}
 
       event.type == :monster and total_recent_fights >= fight_cap(state.class_id) ->

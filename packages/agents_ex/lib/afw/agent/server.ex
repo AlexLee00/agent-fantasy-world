@@ -35,7 +35,8 @@ defmodule AFW.Agent.Server do
       stats: %{hp: 100, max_hp: 100, mp: 50, max_mp: 50, attack: 20, defense: 15, speed: 10},
       history: [],
       tick_count: 0,
-      max_ticks: opts[:max_ticks] || Application.fetch_env!(:afw, :simulation_ticks)
+      max_ticks: opts[:max_ticks] || Application.fetch_env!(:afw, :simulation_ticks),
+      post_combat_cooldown: 0
     }
 
     schedule_tick(state.tick_interval)

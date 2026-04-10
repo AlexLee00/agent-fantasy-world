@@ -13,7 +13,7 @@ defmodule AFW.World.Combat do
 
     win? = agent_attack * 5 >= monster_hp and agent_hp > 0
     soul_delta = if win?, do: reward, else: -div(reward, 2)
-    damage = if(win?, do: 10 + rem(monster_hp + agent_attack, 21), else: 30 + rem(monster_hp + agent_attack, 31))
+    damage = if(win?, do: 20 + rem(monster_hp + agent_attack, 26), else: 40 + rem(monster_hp + agent_attack, 31))
     next_hp = max(agent_hp - damage, 1)
 
     %{
