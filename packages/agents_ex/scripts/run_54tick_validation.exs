@@ -71,12 +71,14 @@ summary = %{
   crashCount: simulation.crashCount,
   settlement: %{
     confirmed: settlement.confirmedEvents,
-    discarded: settlement.failedEvents,
+    discarded: settlement.discardedEvents || settlement.failedEvents,
+    retargeted: settlement.retargetedEvents || 0,
     retried: settlement.retryingEvents,
     failed: 0,
     pending: settlement.pendingEvents,
     averageSettleTimeMs: settlement.averageSettleTimeMs,
-    byType: settlement.byType
+    byType: settlement.byType,
+    discardReasons: settlement.discardReasons || %{}
   },
   actions: Map.put(simulation.actionCounts, "REST", rest_count),
   guardian: %{
@@ -92,4 +94,6 @@ summary = %{
 output_path = Path.expand("../logs/simulation_final.json", __DIR__)
 File.mkdir_p!(Path.dirname(output_path))
 File.write!(output_path, Jason.encode_to_iodata!(summary, pretty: true))
+confirmed_path = Path.expand("../logs/simulation_confirmed.json", __DIR__)
+File.write!(confirmed_path, Jason.encode_to_iodata!(summary, pretty: true))
 IO.puts(Jason.encode!(summary, pretty: true))

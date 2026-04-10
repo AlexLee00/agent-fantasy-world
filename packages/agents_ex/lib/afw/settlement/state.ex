@@ -57,6 +57,16 @@ defmodule AFW.Settlement.State do
     put_state(agent_id, Map.put(state, :confirmed_soul, value))
   end
 
+  def correct_offchain(agent_id, changes) when is_map(changes) do
+    state = optimistic_state(agent_id)
+    next_offchain =
+      Enum.reduce(changes, Map.get(state, :offchain, %{}), fn {field, value}, acc ->
+        put_offchain_field(acc, to_string(field), value)
+      end)
+
+    put_state(agent_id, Map.put(state, :offchain, next_offchain))
+  end
+
   def apply_optimistic(event) do
     state = optimistic_state(event.agent_id)
     delta = optimistic_delta_for(event)

@@ -2,7 +2,7 @@ defmodule AFW.Agent.Loop do
   @moduledoc "Tick execution for Elixir agents using optimistic settlement as the write path."
 
   alias AFW.Brain.PromptBuilder
-  alias AFW.Chain.Client
+  alias AFW.Chain.{Client, Reader}
   alias AFW.Economy.Constants
   alias AFW.Settlement.Hub
   alias AFW.Settlement.State, as: SettlementState
@@ -10,6 +10,8 @@ defmodule AFW.Agent.Loop do
   alias AFW.World.Event
 
   @fight_cooldown_ticks 3
+  @target_lock_ttl_ms 30_000
+  @target_lock_table :targeted_monsters
 
   def execute_tick(state) do
     snapshot = SettlementState.get_agent_view(state.agent_id)
@@ -214,24 +216,31 @@ defmodule AFW.Agent.Loop do
     if spendable < 0 do
       explore_with_reason("FIGHT skipped, pending lock active")
     else
-      simulation = Combat.simulate(context, event)
-      monster_id = get_in(event.metadata || %{}, [:monster_id]) || get_in(event.metadata || %{}, ["monster_id"]) || 1
+      case pick_fight_target(context.agent["zoneId"], context.agent["agentId"]) do
+        {:ok, monster} ->
+          updated_event = %{event | target: monster.name, metadata: monster}
+          simulation = Combat.simulate(context, updated_event)
 
-      Hub.submit_event(%{
-        type: :combat_result,
-        priority: :normal,
-        agent_id: context.agent["agentId"],
-        data: %{
-          agent_id: context.agent["agentId"],
-          monster_id: monster_id,
-          soul_changes: [%{agent_id: context.agent["agentId"], delta: simulation.optimistic_soul_delta}],
-          state_changes: simulation.state_changes ++ [%{agent_id: context.agent["agentId"], field: :hp, value: simulation.hp_after}],
-          hp_after: simulation.hp_after,
-          summary: simulation.summary
-        }
-      })
+          Hub.submit_event(%{
+            type: :combat_result,
+            priority: :normal,
+            agent_id: context.agent["agentId"],
+            data: %{
+              agent_id: context.agent["agentId"],
+              monster_id: monster.monster_id,
+              zone_id: context.agent["zoneId"],
+              soul_changes: [%{agent_id: context.agent["agentId"], delta: simulation.optimistic_soul_delta}],
+              state_changes: simulation.state_changes ++ [%{agent_id: context.agent["agentId"], field: :hp, value: simulation.hp_after}],
+              hp_after: simulation.hp_after,
+              summary: simulation.summary
+            }
+          })
 
-      %{summary: simulation.summary <> " (settling...)", status: :alive}
+          %{summary: simulation.summary <> " (settling...)", status: :alive}
+
+        :no_targets ->
+          explore_with_reason("FIGHT skipped, no alive monsters were available")
+      end
     end
   end
 
@@ -301,7 +310,9 @@ defmodule AFW.Agent.Loop do
   end
 
   defp trade(context) do
-    case cheapest_order(context) do
+    fresh_orders = Reader.get_active_orders()
+
+    case cheapest_order(context, fresh_orders) do
       order when not is_nil(order) ->
         soul_balance = SettlementState.spendable_soul(context.agent["agentId"])
 
@@ -320,6 +331,7 @@ defmodule AFW.Agent.Loop do
                 agent_id: context.agent["agentId"],
                 mode: :buy,
                 order_id: order.order_id,
+                item_id: order.item_id,
                 soul_changes: [%{agent_id: context.agent["agentId"], delta: -order.price_in_soul}],
                 summary:
                   "TRADE buy item##{order.item_id} via order##{order.order_id} -> filled -#{format_soul(order.price_in_soul)} SOUL (#{burned} burned)"
@@ -359,7 +371,7 @@ defmodule AFW.Agent.Loop do
     }
   end
 
-  defp cheapest_order(%{orders: orders, agent: agent}) do
+  defp cheapest_order(%{agent: agent}, orders) do
     observer = String.downcase(agent["observer"] || "")
 
     foreign =
@@ -372,8 +384,17 @@ defmodule AFW.Agent.Loop do
   end
 
   defp maybe_list_item(context) do
-    case context.items do
+    fresh_items = Reader.get_agent_items(context.agent["observer"])
+    existing_orders =
+      Reader.get_active_orders()
+      |> Enum.filter(&(String.downcase(&1.seller || "") == String.downcase(context.agent["observer"] || "")))
+      |> MapSet.new(& &1.item_id)
+
+    case fresh_items do
       [item | _] ->
+        if MapSet.member?(existing_orders, item.item_id) do
+          %{summary: "TRADE skipped, an active order already exists for item##{item.item_id}.", status: :alive}
+        else
         price_in_soul = trade_price(item)
 
         Hub.submit_event(%{
@@ -392,10 +413,55 @@ defmodule AFW.Agent.Loop do
         })
 
         %{summary: "TRADE sell #{item.name}##{item.item_id} -> listed #{format_soul(price_in_soul)} SOUL (settling...)", status: :alive}
+        end
 
       [] ->
         %{summary: "No valid trade was available.", status: :alive}
     end
+  end
+
+  defp pick_fight_target(zone_id, agent_id) do
+    ensure_target_table!()
+    cleanup_stale_target_locks()
+
+    targeted =
+      :ets.tab2list(@target_lock_table)
+      |> Map.new(fn {monster_id, owner, _at} -> {monster_id, owner} end)
+
+    available =
+      Reader.get_alive_monsters_in_zone(zone_id)
+      |> Enum.reject(fn monster -> Map.has_key?(targeted, monster.monster_id) end)
+
+    case available do
+      [target | _] ->
+        :ets.insert(@target_lock_table, {target.monster_id, agent_id, System.monotonic_time(:millisecond)})
+        {:ok, target}
+
+      [] ->
+        :no_targets
+    end
+  end
+
+  defp ensure_target_table! do
+    case :ets.whereis(@target_lock_table) do
+      :undefined ->
+        :ets.new(@target_lock_table, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
+
+      _ ->
+        @target_lock_table
+    end
+  end
+
+  defp cleanup_stale_target_locks do
+    now = System.monotonic_time(:millisecond)
+
+    @target_lock_table
+    |> :ets.tab2list()
+    |> Enum.each(fn {monster_id, _agent_id, claimed_at} ->
+      if now - claimed_at > @target_lock_ttl_ms do
+        :ets.delete(@target_lock_table, monster_id)
+      end
+    end)
   end
 
   defp trade_price(item) do

@@ -19,6 +19,12 @@ defmodule AFW.Agent.Server do
 
   def via_tuple(agent_id), do: {:via, Registry, {AFW.AgentRegistry, agent_id}}
 
+  def apply_reconciled_state(agent_id, attrs) do
+    GenServer.cast(via_tuple(agent_id), {:apply_reconciled_state, attrs})
+  catch
+    :exit, _ -> :ok
+  end
+
   @impl true
   def init(opts) do
     state = %State{
@@ -90,7 +96,25 @@ defmodule AFW.Agent.Server do
       reraise error, __STACKTRACE__
   end
 
+  @impl true
+  def handle_cast({:apply_reconciled_state, attrs}, state) do
+    next_state =
+      state
+      |> maybe_put(:status, attrs[:status])
+      |> maybe_put(:zone_id, attrs[:zone_id])
+      |> maybe_put(:post_combat_cooldown, attrs[:post_combat_cooldown])
+      |> maybe_merge_stats(attrs[:stats])
+
+    {:noreply, next_state}
+  end
+
   defp schedule_tick(interval) do
     Process.send_after(self(), :tick, interval)
   end
+
+  defp maybe_put(state, _key, nil), do: state
+  defp maybe_put(state, key, value), do: Map.put(state, key, value)
+
+  defp maybe_merge_stats(state, nil), do: state
+  defp maybe_merge_stats(state, stats), do: %{state | stats: Map.merge(state.stats || %{}, stats)}
 end

@@ -121,6 +121,25 @@ defmodule AFW.Chain.Reader do
     _ -> []
   end
 
+  def get_alive_monsters_in_zone(zone_id) do
+    total = call_uint(:monster_registry, "totalMonsters", [])
+
+    if total == 0 do
+      []
+    else
+      1..total
+      |> Task.async_stream(&monster_entry(&1, zone_id), timeout: @task_timeout, max_concurrency: 8, ordered: false)
+      |> Enum.flat_map(fn
+        {:ok, nil} -> []
+        {:ok, entry} -> [entry]
+        {:exit, _} -> []
+      end)
+      |> Enum.sort_by(& &1.monster_id)
+    end
+  rescue
+    _ -> []
+  end
+
   def get_npcs_in_zone(zone_id) do
     Cache.get_or_fetch({:npcs, zone_id}, @npc_ttl, fn ->
       total = call_uint(:npc_registry, "totalNPCs", [])
@@ -181,6 +200,43 @@ defmodule AFW.Chain.Reader do
     end)
   rescue
     _ -> []
+  end
+
+  def get_active_orders do
+    total = call_uint(:marketplace, "totalOrders", [])
+
+    if total == 0 do
+      []
+    else
+      1..total
+      |> Task.async_stream(&order_entry/1, timeout: @task_timeout, max_concurrency: 8, ordered: false)
+      |> Enum.flat_map(fn
+        {:ok, nil} -> []
+        {:ok, entry} -> [entry]
+        {:exit, _} -> []
+      end)
+      |> Enum.sort_by(& &1.order_id)
+    end
+  rescue
+    _ -> []
+  end
+
+  def get_agent_fresh_state(agent_id), do: get_agent(agent_id)
+
+  def get_npc_fresh(npc_id) do
+    [type_id, soul_balance, zone_id, active] = call_contract(:npc_registry, "npcs", [npc_id])
+    [name, role, _, _, _] = call_contract(:npc_registry, "npcTypes", [type_id])
+
+    %{
+      npc_id: npc_id,
+      name: name,
+      role: role,
+      zone_id: zone_id,
+      soul_balance: soul_balance,
+      active: active
+    }
+  rescue
+    _ -> nil
   end
 
   def get_soul_balance(address) do

@@ -7,10 +7,11 @@ defmodule AFW.Settlement.Hub do
   alias AFW.Settlement.{Event, Metrics, Reconciler, Settler, State}
 
   @queue :event_queue
+  @targets :targeted_monsters
   @normal_interval 30_000
   @batch_interval 300_000
   @deferred_interval 1_800_000
-  @reconcile_interval 60_000
+  @reconcile_interval 30_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -29,6 +30,7 @@ defmodule AFW.Settlement.Hub do
   def init(_state) do
     State.ensure_tables!()
     ensure_queue!()
+    ensure_targets!()
     schedule(:normal)
     schedule(:batch)
     schedule(:deferred)
@@ -129,6 +131,13 @@ defmodule AFW.Settlement.Hub do
     case :ets.whereis(@queue) do
       :undefined -> :ets.new(@queue, [:named_table, :public, :ordered_set])
       _ -> @queue
+    end
+  end
+
+  defp ensure_targets! do
+    case :ets.whereis(@targets) do
+      :undefined -> :ets.new(@targets, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
+      _ -> @targets
     end
   end
 end

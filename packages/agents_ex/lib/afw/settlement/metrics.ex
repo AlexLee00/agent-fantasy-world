@@ -9,7 +9,9 @@ defmodule AFW.Settlement.Metrics do
   def record_submitted(event), do: GenServer.cast(__MODULE__, {:submitted, event})
   def record_retry(event), do: GenServer.cast(__MODULE__, {:retry, event})
   def record_confirmed(event), do: GenServer.cast(__MODULE__, {:confirmed, event})
+  def record_discard(event, reason), do: GenServer.cast(__MODULE__, {:discarded, event, reason})
   def record_failed(event, reason), do: GenServer.cast(__MODULE__, {:failed, event, reason})
+  def record_retargeted(type, reason), do: GenServer.cast(__MODULE__, {:retargeted, type, reason})
   def snapshot, do: GenServer.call(__MODULE__, :snapshot)
 
   @impl true
@@ -17,9 +19,10 @@ defmodule AFW.Settlement.Metrics do
     {:ok,
      %{
        events: %{},
-       counts: %{total: 0, confirmed: 0, failed: 0, retrying: 0},
+       counts: %{total: 0, confirmed: 0, failed: 0, retrying: 0, discarded: 0, retargeted: 0},
        by_type: %{},
-       recent_failures: []
+       recent_failures: [],
+       discard_reasons: %{}
      }}
   end
 
@@ -51,6 +54,20 @@ defmodule AFW.Settlement.Metrics do
     {:noreply, next_state}
   end
 
+  def handle_cast({:discarded, event, reason}, state) do
+    next_state =
+      state
+      |> update_counts(:discarded)
+      |> update_type(event.type, :failed, 1)
+      |> update_reason(reason)
+      |> Map.update!(:recent_failures, fn failures ->
+        [%{id: event.id, type: event.type, reason: inspect(reason)} | failures] |> Enum.take(20)
+      end)
+      |> drop_event(event.id)
+
+    {:noreply, next_state}
+  end
+
   def handle_cast({:failed, event, reason}, state) do
     next_state =
       state
@@ -60,6 +77,16 @@ defmodule AFW.Settlement.Metrics do
         [%{id: event.id, type: event.type, reason: inspect(reason)} | failures] |> Enum.take(20)
       end)
       |> drop_event(event.id)
+
+    {:noreply, next_state}
+  end
+
+  def handle_cast({:retargeted, type, reason}, state) do
+    next_state =
+      state
+      |> update_counts(:retargeted)
+      |> update_reason(reason)
+      |> update_type(type, :count, 0)
 
     {:noreply, next_state}
   end
@@ -89,6 +116,11 @@ defmodule AFW.Settlement.Metrics do
     end)
   end
 
+  defp update_reason(state, reason) do
+    normalized = normalize_reason(reason)
+    update_in(state.discard_reasons, &Map.update(&1, normalized, 1, fn count -> count + 1 end))
+  end
+
   defp settle_ms(event) do
     max(DateTime.diff(DateTime.utc_now(), event.created_at, :millisecond), 0)
   end
@@ -97,7 +129,9 @@ defmodule AFW.Settlement.Metrics do
     %{
       totalEvents: state.counts.total,
       confirmedEvents: state.counts.confirmed,
+      discardedEvents: state.counts.discarded,
       failedEvents: state.counts.failed,
+      retargetedEvents: state.counts.retargeted,
       retryingEvents: state.counts.retrying,
       pendingEvents: map_size(state.events),
       averageSettleTimeMs: avg_total(state.by_type),
@@ -118,9 +152,14 @@ defmodule AFW.Settlement.Metrics do
              avgSettleMs: avg
            }}
         end),
-      recentFailures: state.recent_failures
+      recentFailures: state.recent_failures,
+      discardReasons: state.discard_reasons
     }
   end
+
+  defp normalize_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp normalize_reason(reason) when is_binary(reason), do: reason
+  defp normalize_reason(reason), do: inspect(reason)
 
   defp avg_total(by_type) do
     totals =
