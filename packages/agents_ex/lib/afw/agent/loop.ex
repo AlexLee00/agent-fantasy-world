@@ -197,7 +197,8 @@ defmodule AFW.Agent.Loop do
           agent_id: context.agent["agentId"],
           monster_id: monster_id,
           soul_changes: [%{agent_id: context.agent["agentId"], delta: simulation.optimistic_soul_delta}],
-          state_changes: simulation.state_changes,
+          state_changes: simulation.state_changes ++ [%{agent_id: context.agent["agentId"], field: :hp, value: simulation.hp_after}],
+          hp_after: simulation.hp_after,
           summary: simulation.summary
         }
       })
@@ -238,7 +239,10 @@ defmodule AFW.Agent.Loop do
                 status_id: Constants.resting_status_id(),
                 heal_stats: healed_stats,
                 soul_changes: [%{agent_id: context.agent["agentId"], delta: -price_entry.price}],
-                state_changes: [%{agent_id: context.agent["agentId"], field: :statusName, value: "RESTING"}],
+                state_changes: [
+                  %{agent_id: context.agent["agentId"], field: :statusName, value: "RESTING"},
+                  %{agent_id: context.agent["agentId"], field: :hp, value: healed_stats["hp"]}
+                ],
                 summary: "REST #{tavern.name}##{tavern.npc_id} -> HP #{previous_hp}→#{healed_stats["hp"]}, -#{format_soul(price_entry.price)} SOUL"
               }
             })

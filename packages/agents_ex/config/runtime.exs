@@ -47,6 +47,7 @@ config :afw,
   anthropic_api_key: System.get_env("ANTHROPIC_API_KEY", ""),
   openai_api_key: System.get_env("OPENAI_API_KEY", ""),
   tick_interval_ms: String.to_integer(System.get_env("AGENT_LOOP_INTERVAL", "10")) * 1_000,
+  guardian_epoch_ms: String.to_integer(System.get_env("GUARDIAN_EPOCH_MS", "3600000")),
   guardian_dashboard_path:
     System.get_env("GUARDIAN_DASHBOARD_PATH", "../agents/logs/guardian_dashboard.json"),
   economy_metrics_path:

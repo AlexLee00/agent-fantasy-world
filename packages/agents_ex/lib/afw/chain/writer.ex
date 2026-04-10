@@ -15,6 +15,9 @@ defmodule AFW.Chain.Writer do
   @estimate_retry_count 3
   @estimate_retry_sleep_ms 1_000
   @combat_fallback_gas_limit 500_000
+  @npc_fallback_gas_limit 200_000
+  @market_fallback_gas_limit 300_000
+  @agent_fallback_gas_limit 200_000
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -434,16 +437,17 @@ defmodule AFW.Chain.Writer do
             }
 
           {:error, reason} ->
-            if fixed_gas_fallback?(cache_key) do
+            if default_gas_limit(cache_key) do
+              fallback = default_gas_limit(cache_key)
               Logger.warning(
-                "estimateGas fallback for #{inspect(cache_key)} after retries: #{inspect(reason)} -> #{@combat_fallback_gas_limit}"
+                "estimateGas fallback for #{inspect(cache_key)} after estimate failure: #{inspect(reason)} -> #{fallback}"
               )
 
               {
-                @combat_fallback_gas_limit,
+                fallback,
                 put_in(
                   state.gas_cache[cache_key],
-                  %{gas_limit: @combat_fallback_gas_limit, expires_at: now + @gas_cache_ttl_ms}
+                  %{gas_limit: fallback, expires_at: now + @gas_cache_ttl_ms}
                 )
               }
             else
@@ -461,7 +465,7 @@ defmodule AFW.Chain.Writer do
         {:ok, quantity_hex}
 
       {:error, reason} ->
-        if retryable_estimate_error?(reason) and attempts_left > 1 do
+        if retryable_estimate_error?(reason) and attempts_left > 1 and is_nil(default_gas_limit(cache_key)) do
           retry_count = @estimate_retry_count - attempts_left + 1
           Logger.warning("estimateGas retry #{retry_count} for #{inspect(cache_key)} after #{inspect(reason)}")
           Process.sleep(@estimate_retry_sleep_ms)
@@ -604,8 +608,13 @@ defmodule AFW.Chain.Writer do
   defp validate_monster_tuple!(_monster_id, {_, hp, _, _, _, _, alive}) when alive and hp > 0, do: :ok
   defp validate_monster_tuple!(monster_id, _), do: raise("Combat precheck failed: monster #{monster_id} is not alive")
 
-  defp fixed_gas_fallback?({:combat_resolver, "resolveCombat"}), do: true
-  defp fixed_gas_fallback?(_), do: false
+  defp default_gas_limit({:combat_resolver, "resolveCombat"}), do: @combat_fallback_gas_limit
+  defp default_gas_limit({:npc_registry, "buyFromNPC"}), do: @npc_fallback_gas_limit
+  defp default_gas_limit({:marketplace, "createOrder"}), do: @market_fallback_gas_limit
+  defp default_gas_limit({:marketplace, "fillOrder"}), do: @market_fallback_gas_limit
+  defp default_gas_limit({:agent_registry, "createAgent"}), do: @agent_fallback_gas_limit
+  defp default_gas_limit({:agent_registry, "updateAgentState"}), do: @agent_fallback_gas_limit
+  defp default_gas_limit(_), do: nil
 
   defp retryable_estimate_error?(reason) do
     reason

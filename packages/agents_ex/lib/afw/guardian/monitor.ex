@@ -14,6 +14,10 @@ defmodule AFW.Guardian.Monitor do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
+  def force_epoch do
+    GenServer.cast(__MODULE__, :force_epoch)
+  end
+
   @impl true
   def init(state) do
     Phoenix.PubSub.subscribe(AFW.PubSub, "guardian")
@@ -27,11 +31,20 @@ defmodule AFW.Guardian.Monitor do
   end
 
   @impl true
+  def handle_cast(:force_epoch, state) do
+    send(self(), :epoch)
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info(:epoch, state) do
     queued = Hub.queued_events()
     economics = Economics.snapshot()
     events = Enum.reverse(state.epoch_events) ++ mismatch_events(state.mismatches)
     ai_analysis = brain_analysis(events, economics)
+    epoch_no = GuardianMetrics.snapshot().epochsAnalyzed + 1
+
+    Logger.info("[guardian] epoch #{epoch_no} started: scanning #{length(events ++ queued)} events")
 
     payload =
       Analyzer.analyze(events ++ queued, %{
@@ -54,7 +67,7 @@ defmodule AFW.Guardian.Monitor do
       })
 
     GuardianMetrics.record_epoch(payload)
-    Logger.info("[guardian] epoch analysis: #{length(events ++ queued)} events, severity=#{payload.severity}")
+    Logger.info("[guardian] epoch #{epoch_no} result: severity=#{payload.severity}, anomalies=#{length(payload.anomalies || [])}")
     Logger.info("[guardian] SOUL supply: minted=#{payload.economy.totalSOULMinted}, burned=#{payload.economy.totalSOULBurned}, circulating=#{payload.economy.circulatingSOUL}")
     Logger.info("[guardian] Gini coefficient: #{payload.agents.wealthGini}")
     maybe_trigger_freeze(payload)

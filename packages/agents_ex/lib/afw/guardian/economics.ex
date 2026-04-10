@@ -19,7 +19,7 @@ defmodule AFW.Guardian.Economics do
     orders = Client.active_orders()
     queued = Hub.queued_events()
 
-    %{
+    snapshot = %{
       soul: %{
         total_minted: metrics.total_minted,
         total_burned: metrics.total_burned,
@@ -45,6 +45,9 @@ defmodule AFW.Guardian.Economics do
       },
       treasury: treasury_view(treasury_balance, queued)
     }
+
+    log_snapshot(snapshot)
+    snapshot
   end
 
   def treasury_view(balance, queued \\ Hub.queued_events()) do
@@ -131,5 +134,29 @@ defmodule AFW.Guardian.Economics do
   defp estimate_eta(balance, threshold, queued_inflow) do
     per_epoch = max(queued_inflow, 1_000_000_000_000_000_000)
     max(div(max(threshold - balance, 0), per_epoch), 0)
+  end
+
+  defp log_snapshot(snapshot) do
+    top =
+      snapshot.soul.balances
+      |> Enum.max_by(& &1.total, fn -> %{agent_id: nil, total: 0} end)
+
+    bottom =
+      snapshot.soul.balances
+      |> Enum.min_by(& &1.total, fn -> %{agent_id: nil, total: 0} end)
+
+    require Logger
+
+    Logger.info(
+      "[economics] SOUL: minted=#{snapshot.soul.total_minted} burned=#{snapshot.soul.total_burned} circulating=#{snapshot.soul.circulating} inflation=#{Float.round(snapshot.soul.inflation_rate * 100, 2)}%"
+    )
+
+    Logger.info(
+      "[economics] Gini=#{snapshot.wealth.gini}, topAgent=#{top.agent_id || "n/a"} #{top.total}, bottomAgent=#{bottom.agent_id || "n/a"} #{bottom.total}"
+    )
+
+    Logger.info(
+      "[economics] Treasury: #{snapshot.treasury.balance} SOUL (next: #{snapshot.treasury.next_threshold} at #{snapshot.treasury.next_threshold_amount})"
+    )
   end
 end

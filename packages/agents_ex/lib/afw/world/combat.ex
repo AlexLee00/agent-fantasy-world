@@ -13,16 +13,20 @@ defmodule AFW.World.Combat do
 
     win? = agent_attack * 5 >= monster_hp and agent_hp > 0
     soul_delta = if win?, do: reward, else: -div(reward, 2)
+    damage = if(win?, do: 10 + rem(monster_hp + agent_attack, 21), else: 30 + rem(monster_hp + agent_attack, 31))
+    next_hp = max(agent_hp - damage, 1)
 
     %{
       summary:
         if(
           win?,
-          do: "FIGHT #{event.target || "monster"}##{monster_id} -> WON +#{format_soul(reward)} SOUL",
-          else: "FIGHT #{event.target || "monster"}##{monster_id} -> LOST #{format_soul(abs(soul_delta))} SOUL"
+          do: "FIGHT #{event.target || "monster"}##{monster_id} -> WON +#{format_soul(reward)} SOUL, HP #{agent_hp}→#{next_hp}",
+          else: "FIGHT #{event.target || "monster"}##{monster_id} -> LOST #{format_soul(abs(soul_delta))} SOUL, HP #{agent_hp}→#{next_hp}"
         ),
       optimistic_soul_delta: soul_delta,
-      state_changes: [],
+      hp_after: next_hp,
+      damage_taken: damage,
+      state_changes: [%{field: :hp, value: next_hp}],
       success?: win?
     }
   end
