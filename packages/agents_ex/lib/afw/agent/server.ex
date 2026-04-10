@@ -42,7 +42,8 @@ defmodule AFW.Agent.Server do
       history: [],
       tick_count: 0,
       max_ticks: opts[:max_ticks] || Application.fetch_env!(:afw, :simulation_ticks),
-      post_combat_cooldown: 0
+      post_combat_cooldown: 0,
+      consecutive_trades: 0
     }
 
     schedule_tick(state.tick_interval)

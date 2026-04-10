@@ -4,6 +4,7 @@ defmodule AFW.Settlement.Settler do
 
   alias AFW.Chain.{Client, Reader, Writer}
   alias AFW.Settlement.{Metrics, State}
+  @failed_orders_table :failed_orders
 
   def settle(events) do
     events
@@ -186,6 +187,7 @@ defmodule AFW.Settlement.Settler do
 
       case replacement do
         nil ->
+          blacklist_order(data.order_id)
           {:discard, "Marketplace buy precheck failed: order_not_active"}
 
         next_order ->
@@ -194,6 +196,7 @@ defmodule AFW.Settlement.Settler do
           settle_market_buy(put_in(event.data.order_id, next_order.order_id), attempt + 1)
       end
     else
+      blacklist_order(data.order_id)
       {:discard, reason}
     end
   end
@@ -320,6 +323,23 @@ defmodule AFW.Settlement.Settler do
 
   defp handle_combat_error(_event, :call_failed, _attempt), do: {:error, :call_failed}
   defp handle_combat_error(_event, reason, _attempt), do: {:discard, reason}
+
+  defp blacklist_order(nil), do: :ok
+  defp blacklist_order(order_id) do
+    ensure_failed_orders_table!()
+    :ets.insert(@failed_orders_table, {order_id, System.monotonic_time(:millisecond)})
+    :ok
+  end
+
+  defp ensure_failed_orders_table! do
+    case :ets.whereis(@failed_orders_table) do
+      :undefined ->
+        :ets.new(@failed_orders_table, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
+
+      _ ->
+        @failed_orders_table
+    end
+  end
 
   defp event_with_monster(agent_id, data, monster_id) do
     %{type: :combat_result, agent_id: agent_id, data: Map.put(data, :monster_id, monster_id)}

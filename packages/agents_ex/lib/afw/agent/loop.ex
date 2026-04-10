@@ -12,6 +12,8 @@ defmodule AFW.Agent.Loop do
   @fight_cooldown_ticks 3
   @target_lock_ttl_ms 30_000
   @target_lock_table :targeted_monsters
+  @failed_orders_table :failed_orders
+  @failed_order_ttl_ms 300_000
 
   def execute_tick(state) do
     snapshot = SettlementState.get_agent_view(state.agent_id)
@@ -88,7 +90,8 @@ defmodule AFW.Agent.Loop do
       | tick_count: state.tick_count + 1,
         history: (state.history || []) ++ [history_entry],
         last_action: history_entry,
-        post_combat_cooldown: next_cooldown
+        post_combat_cooldown: next_cooldown,
+        consecutive_trades: next_trade_streak(state, decision["action"] || decision[:action])
     }
   end
 
@@ -133,6 +136,9 @@ defmodule AFW.Agent.Loop do
 
       event.type == :monster and total_recent_fights >= fight_cap(state.class_id) ->
         {:decided, post_fight_fallback(context, event, talk_count)}
+
+      state.consecutive_trades >= 3 ->
+        {:decided, %{"action" => "EXPLORE", "target" => "roads beyond #{context.zone["name"]}"}}
 
       event.type == :monster and state.class_id in [2, 3] and state.tick_count <= 1 ->
         {:decided, %{"action" => "TALK", "target" => event.target || "locals"}}
@@ -310,7 +316,7 @@ defmodule AFW.Agent.Loop do
   end
 
   defp trade(context) do
-    fresh_orders = Reader.get_active_orders()
+    fresh_orders = available_trade_orders()
 
     case cheapest_order(context, fresh_orders) do
       order when not is_nil(order) ->
@@ -419,6 +425,47 @@ defmodule AFW.Agent.Loop do
         %{summary: "No valid trade was available.", status: :alive}
     end
   end
+
+  defp available_trade_orders do
+    ensure_failed_orders_table!()
+    cleanup_failed_orders()
+    blacklisted = failed_order_ids()
+
+    Reader.get_active_orders()
+    |> Enum.reject(&MapSet.member?(blacklisted, &1.order_id))
+  end
+
+  defp failed_order_ids do
+    @failed_orders_table
+    |> :ets.tab2list()
+    |> Enum.map(fn {order_id, _ts} -> order_id end)
+    |> MapSet.new()
+  end
+
+  defp ensure_failed_orders_table! do
+    case :ets.whereis(@failed_orders_table) do
+      :undefined ->
+        :ets.new(@failed_orders_table, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
+
+      _ ->
+        @failed_orders_table
+    end
+  end
+
+  defp cleanup_failed_orders do
+    now = System.monotonic_time(:millisecond)
+
+    @failed_orders_table
+    |> :ets.tab2list()
+    |> Enum.each(fn {order_id, failed_at} ->
+      if now - failed_at > @failed_order_ttl_ms do
+        :ets.delete(@failed_orders_table, order_id)
+      end
+    end)
+  end
+
+  defp next_trade_streak(state, "TRADE"), do: (state.consecutive_trades || 0) + 1
+  defp next_trade_streak(_state, _), do: 0
 
   defp pick_fight_target(zone_id, agent_id) do
     ensure_target_table!()

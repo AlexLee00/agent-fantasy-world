@@ -18,6 +18,7 @@ defmodule AFW.Agent.State do
     :wallet,
     :tick_count,
     :max_ticks,
-    :post_combat_cooldown
+    :post_combat_cooldown,
+    :consecutive_trades
   ]
 end
