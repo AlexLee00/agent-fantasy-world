@@ -15,6 +15,13 @@ defmodule AFW.Chain.Pool do
     |> do_request(fun)
   end
 
+  def request_with_urls(urls, fun) when is_list(urls) and is_function(fun, 1) do
+    urls
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> do_request(fun)
+  end
+
   defp do_request([], _fun), do: {:error, :no_rpc_available}
 
   defp do_request([url | rest], fun) do

@@ -18,6 +18,11 @@ defmodule AFW.Chain.Writer do
   @npc_fallback_gas_limit 200_000
   @market_fallback_gas_limit 300_000
   @agent_fallback_gas_limit 200_000
+  @combat_tx_rpc_urls [
+    "https://base-sepolia-rpc.publicnode.com",
+    "https://sepolia.base.org",
+    "https://base-sepolia.blockpi.network/v1/rpc/public"
+  ]
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -343,15 +348,17 @@ defmodule AFW.Chain.Writer do
         {contract_key, function_name}
       )
 
-    case dry_run_transaction(state.account_address, to, data, quantity(0), {contract_key, function_name}) do
-      {:ok, _result} ->
-        :ok
+    if not skip_dry_run?(contract_key, function_name) do
+      case dry_run_transaction(state.account_address, to, data, quantity(0), {contract_key, function_name}) do
+        {:ok, _result} ->
+          :ok
 
-      {:error, {:revert, reason}} ->
-        raise "Transaction dry run reverted: #{reason}"
+        {:error, {:revert, reason}} ->
+          raise "Transaction dry run reverted: #{reason}"
 
-      {:error, :call_failed} ->
-        raise "Transaction dry run call_failed"
+        {:error, :call_failed} ->
+          raise "Transaction dry run call_failed"
+      end
     end
 
     raw_tx =
@@ -367,7 +374,15 @@ defmodule AFW.Chain.Writer do
         state.private_key
       )
 
-    case Pool.request(fn url ->
+    tx_rpc_urls =
+      if combat_tx?(contract_key, function_name) do
+        Logger.info("[writer] combat tx fallback order=#{inspect(@combat_tx_rpc_urls)}")
+        @combat_tx_rpc_urls
+      else
+        Application.get_env(:afw, :rpc_urls, [])
+      end
+
+    case Pool.request_with_urls(tx_rpc_urls, fn url ->
            HttpClient.eth_send_raw_transaction("0x" <> Base.encode16(raw_tx, case: :lower), [url: url])
          end) do
       {:ok, tx_hash} ->
@@ -686,6 +701,12 @@ defmodule AFW.Chain.Writer do
     |> inspect()
     |> String.contains?("521")
   end
+
+  defp combat_tx?(:combat_resolver, "resolveCombat"), do: true
+  defp combat_tx?(_, _), do: false
+
+  defp skip_dry_run?(:combat_resolver, "resolveCombat"), do: true
+  defp skip_dry_run?(_, _), do: false
 
   defp encode_stats(%{"hp" => hp, "maxHp" => max_hp, "mp" => mp, "maxMp" => max_mp, "attack" => attack, "defense" => defense, "speed" => speed}) do
     [hp, max_hp, mp, max_mp, attack, defense, speed]
