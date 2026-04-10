@@ -343,12 +343,15 @@ defmodule AFW.Chain.Writer do
         {contract_key, function_name}
       )
 
-    case dry_run_transaction(state.account_address, to, data, quantity(0)) do
-      :ok ->
+    case dry_run_transaction(state.account_address, to, data, quantity(0), {contract_key, function_name}) do
+      {:ok, _result} ->
         :ok
 
-      {:revert, reason} ->
+      {:error, {:revert, reason}} ->
         raise "Transaction dry run reverted: #{reason}"
+
+      {:error, :call_failed} ->
+        raise "Transaction dry run call_failed"
     end
 
     raw_tx =
@@ -371,7 +374,13 @@ defmodule AFW.Chain.Writer do
         receipt = wait_for_receipt!(tx_hash, state)
 
         if quantity_to_integer(Map.get(receipt, "status", "0x1")) != 1 do
-          raise "Transaction #{tx_hash} reverted"
+          revert_reason =
+            case dry_run_transaction(state.account_address, to, data, quantity(0), {contract_key, function_name}) do
+              {:error, {:revert, reason}} -> reason
+              _ -> "unknown_revert"
+            end
+
+          raise "Transaction #{tx_hash} reverted: #{revert_reason}"
         end
 
         invalidate_related_cache(contract_key, function_name, args)
@@ -505,36 +514,49 @@ defmodule AFW.Chain.Writer do
     raise "Timed out waiting for receipt #{tx_hash}"
   end
 
-  defp dry_run_transaction(from, to, data, value) do
+  defp dry_run_transaction(from, to, data, value, cache_key) do
     tx = %{"from" => from, "to" => to, "data" => data, "value" => value}
 
     case Pool.request(fn url -> HttpClient.eth_call(tx, "latest", [url: url]) end) do
-      {:ok, _} ->
-        :ok
+      {:ok, result} ->
+        Logger.info("[settle] dry_run: OK #{inspect(cache_key)}")
+        {:ok, result}
 
       {:error, reason} ->
         case extract_revert_reason(reason) do
-          nil -> :ok
+          nil ->
+            Logger.error("[writer] #{inspect(cache_key)} call error: #{inspect(reason)}")
+            {:error, :call_failed}
+
           revert_reason ->
-            Logger.error("[writer] revert reason: #{revert_reason}")
-            {:revert, revert_reason}
+            Logger.error("[writer] #{inspect(cache_key)} revert reason: #{revert_reason}")
+            {:error, {:revert, revert_reason}}
         end
     end
   end
 
   defp extract_revert_reason(%{"data" => "0x" <> _ = data}), do: ABI.decode_revert(data)
+  defp extract_revert_reason(%{"data" => data}) when is_binary(data), do: ABI.decode_revert(data)
   defp extract_revert_reason(%{"message" => message}), do: message
   defp extract_revert_reason(reason) do
     text = inspect(reason)
 
     cond do
+      String.contains?(text, "CombatResolver: monster dead") -> "CombatResolver: monster dead"
+      String.contains?(text, "AgentRegistry: agent not found") -> "AgentRegistry: agent not found"
+      String.contains?(text, "AgentRegistry: status not found") -> "AgentRegistry: status not found"
+      String.contains?(text, "MonsterRegistry: already dead") -> "MonsterRegistry: already dead"
+      String.contains?(text, "MonsterRegistry: monster dead") -> "MonsterRegistry: monster dead"
       String.contains?(text, "AgentNotAlive") -> "AgentNotAlive"
       String.contains?(text, "MonsterNotAlive") -> "MonsterNotAlive"
       String.contains?(text, "InsufficientBalance") -> "InsufficientBalance"
       String.contains?(text, "InsufficientSOUL") -> "InsufficientSOUL"
       String.contains?(text, "OrderNotActive") -> "OrderNotActive"
+      String.contains?(text, "InsufficientItemBalance") -> "InsufficientItemBalance"
+      String.contains?(text, "ZeroAmount") -> "ZeroAmount"
       String.contains?(text, "ItemNotAvailable") -> "ItemNotAvailable"
       String.contains?(text, "Unauthorized") -> "Unauthorized"
+      String.contains?(text, "execution reverted:") -> text |> String.split("execution reverted:") |> List.last() |> String.trim()
       String.contains?(text, "revert") -> text
       true -> nil
     end

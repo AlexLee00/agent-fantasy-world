@@ -31,6 +31,7 @@ defmodule AFW.Chain.Client do
   def get_npc_fresh(npc_id), do: Reader.get_npc_fresh(npc_id)
   def get_agent_items(address), do: Reader.get_agent_items(address)
   def get_agent_fresh_state(agent_id), do: Reader.get_agent_fresh_state(agent_id)
+  def get_monster_fresh(monster_id), do: Reader.get_monster_fresh(monster_id)
   def get_node_stats, do: Reader.get_node_stats()
   def get_creator_stats, do: Reader.get_creator_stats()
   def get_soul_balance(address), do: Reader.get_soul_balance(address)

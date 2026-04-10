@@ -12,6 +12,8 @@ defmodule AFW.Settlement.Settler do
   end
 
   def settle_event(event) do
+    log_attempt(event)
+
     case execute(event) do
       {:ok, payload} ->
         State.release_lock(event.id, event.agent_id)
@@ -34,7 +36,9 @@ defmodule AFW.Settlement.Settler do
   end
 
   defp execute(%{type: :combat_result} = event) do
-    settle_combat(event, 0)
+    with :ok <- precheck_combat(event) do
+      settle_combat(event, 0)
+    end
   end
 
   defp execute(%{type: :npc_purchase, data: data}) do
@@ -89,6 +93,12 @@ defmodule AFW.Settlement.Settler do
          {:ok, monster_id} <- validate_or_retarget_monster(data.zone_id, data.monster_id, attempt),
          {:ok, payload} <- Writer.resolve_combat(data.agent_id, monster_id) do
       {:ok, payload}
+    else
+      {:error, reason} ->
+        handle_combat_error(event_with_monster(data.agent_id, data, monster_id_or_original(data.monster_id)), reason, attempt)
+
+      other ->
+        other
     end
   rescue
     error -> {:discard, Exception.message(error)}
@@ -149,6 +159,12 @@ defmodule AFW.Settlement.Settler do
          {:ok, payload} <- Writer.fill_market_order(data.order_id) do
       {:ok, payload}
     else
+      {:error, {:revert, reason}} ->
+        maybe_retry_market_buy(event, reason, attempt)
+
+      {:error, :call_failed} ->
+        {:error, :call_failed}
+
       {:discard, reason} ->
         maybe_retry_market_buy(event, reason, attempt)
 
@@ -160,7 +176,7 @@ defmodule AFW.Settlement.Settler do
   end
 
   defp maybe_retry_market_buy(%{data: data} = event, reason, attempt) do
-    if attempt < 1 and String.contains?(to_string(reason), "order inactive") do
+    if attempt < 1 and String.contains?(to_string(reason), "order") do
       replacement =
         Client.get_active_orders()
         |> Enum.reject(&(&1.order_id == data.order_id))
@@ -253,6 +269,63 @@ defmodule AFW.Settlement.Settler do
   defp log_discard(event, reason) do
     Logger.warning("[settle] DISCARD #{event.type}: reason=#{discard_category(reason)} details=#{inspect(reason)} agent=#{event.agent_id}")
   end
+
+  defp log_attempt(event) do
+    Logger.info("[settle] #{event.type} attempt: agent=#{event.agent_id} data=#{inspect(event.data)}")
+  end
+
+  defp precheck_combat(%{data: data}) do
+    case {Client.get_agent_fresh_state(data.agent_id), Client.get_monster_fresh(data.monster_id)} do
+      {nil, _} ->
+        {:discard, :read_failed}
+
+      {_, nil} ->
+        {:discard, :read_failed}
+
+      {agent, monster} ->
+        hp = get_in(agent, ["stats", "hp"]) || 0
+        atk = get_in(agent, ["stats", "attack"]) || 0
+        Logger.info("[settle] precheck: agent status=#{agent["statusId"]} hp=#{hp} atk=#{atk}, monster alive=#{monster.alive} hp=#{monster.hp}")
+
+        cond do
+          hp <= 0 -> {:discard, :agent_zero_hp}
+          atk <= 0 -> {:discard, :agent_zero_attack}
+          not monster.alive -> {:discard, :monster_dead}
+          true -> :ok
+        end
+    end
+  rescue
+    _ -> {:discard, :read_failed}
+  end
+
+  defp handle_combat_error(event, {:revert, reason}, attempt) do
+    case reason do
+      "CombatResolver: monster dead" ->
+        settle_combat(event, attempt + 1)
+
+      "MonsterRegistry: already dead" ->
+        settle_combat(event, attempt + 1)
+
+      "AgentRegistry: agent not found" ->
+        {:discard, :agent_not_found}
+
+      "AgentRegistry: status not found" ->
+        {:discard, :invalid_status}
+
+      other ->
+        Logger.error("[settle] unknown revert: #{other}")
+        {:discard, {:unknown_revert, other}}
+    end
+  end
+
+  defp handle_combat_error(_event, :call_failed, _attempt), do: {:error, :call_failed}
+  defp handle_combat_error(_event, reason, _attempt), do: {:discard, reason}
+
+  defp event_with_monster(agent_id, data, monster_id) do
+    %{type: :combat_result, agent_id: agent_id, data: Map.put(data, :monster_id, monster_id)}
+  end
+
+  defp monster_id_or_original(monster_id), do: monster_id
 
   defp discard_category(reason) do
     text = to_string(reason)

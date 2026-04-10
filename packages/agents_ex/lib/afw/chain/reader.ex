@@ -223,6 +223,28 @@ defmodule AFW.Chain.Reader do
 
   def get_agent_fresh_state(agent_id), do: get_agent(agent_id)
 
+  def get_monster_fresh(monster_id) do
+    [monster_tuple] = call_contract(:monster_registry, "getMonster", [monster_id])
+    {type_id, hp, atk, def_value, soul_balance, zone_id, alive} = monster_tuple
+    [type_tuple] = call_contract(:monster_registry, "getMonsterType", [type_id])
+    {name, danger_level, _, _, _, _, _, _, _, _, _, _} = type_tuple
+
+    %{
+      monster_id: monster_id,
+      type_id: type_id,
+      name: name,
+      atk: atk,
+      def: def_value,
+      hp: hp,
+      soul_balance: soul_balance,
+      zone_id: zone_id,
+      danger_level: danger_level,
+      alive: alive
+    }
+  rescue
+    _ -> nil
+  end
+
   def get_npc_fresh(npc_id) do
     [type_id, soul_balance, zone_id, active] = call_contract(:npc_registry, "npcs", [npc_id])
     [name, role, _, _, _] = call_contract(:npc_registry, "npcTypes", [type_id])
