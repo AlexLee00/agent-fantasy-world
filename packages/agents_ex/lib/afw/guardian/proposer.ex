@@ -2,6 +2,7 @@ defmodule AFW.Guardian.Proposer do
   @moduledoc "Builds GovernanceDAO freeze proposals from Guardian findings."
 
   alias AFW.Chain.{ABI, Contracts}
+  alias AFW.Guardian.Metrics
   alias AFW.Settlement.Hub
 
   def freeze_wallet(wallet, evidence) do
@@ -20,6 +21,7 @@ defmodule AFW.Guardian.Proposer do
 
   def submit_freeze_proposal(wallet, evidence) do
     proposal = freeze_wallet(wallet, evidence)
+    Metrics.record_proposal()
 
     Hub.submit_event(%{
       type: :governance_action,

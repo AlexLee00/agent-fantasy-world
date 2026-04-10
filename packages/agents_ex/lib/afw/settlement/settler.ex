@@ -2,7 +2,7 @@ defmodule AFW.Settlement.Settler do
   @moduledoc "Executes on-chain settlement for queued optimistic events."
 
   alias AFW.Chain.Writer
-  alias AFW.Settlement.State
+  alias AFW.Settlement.{Metrics, State}
 
   def settle(events) do
     events
@@ -15,6 +15,7 @@ defmodule AFW.Settlement.Settler do
       {:ok, payload} ->
         State.release_lock(event.id, event.agent_id)
         State.confirm_event(event)
+        Metrics.record_confirmed(event)
         Phoenix.PubSub.broadcast(AFW.PubSub, "agents", {:settlement_confirmed, event.agent_id, event.id, payload})
         {:ok, payload}
 

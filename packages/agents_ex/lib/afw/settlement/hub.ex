@@ -4,7 +4,7 @@ defmodule AFW.Settlement.Hub do
   use GenServer
   require Logger
 
-  alias AFW.Settlement.{Event, Reconciler, Settler, State}
+  alias AFW.Settlement.{Event, Metrics, Reconciler, Settler, State}
 
   @queue :event_queue
   @normal_interval 30_000
@@ -34,6 +34,7 @@ defmodule AFW.Settlement.Hub do
   def handle_cast({:submit, attrs}, state) do
     event = normalize(attrs)
     State.apply_optimistic(event)
+    Metrics.record_submitted(event)
     State.add_lock(event.id, event.agent_id, outgoing_lock_amount(event))
     insert_event(event)
 
@@ -74,10 +75,12 @@ defmodule AFW.Settlement.Hub do
       {:error, reason} ->
         if event.retry_count < 3 do
           Logger.warning("Settlement retry #{event.retry_count + 1} for #{event.id}: #{inspect(reason)}")
+          Metrics.record_retry(event)
           insert_event(%{event | retry_count: event.retry_count + 1, status: :retrying})
         else
           State.rollback_event(event)
           State.release_lock(event.id, event.agent_id)
+          Metrics.record_failed(event, reason)
           Phoenix.PubSub.broadcast(AFW.PubSub, "agents", {:settlement_failed, event.agent_id, event.id, reason})
         end
     end

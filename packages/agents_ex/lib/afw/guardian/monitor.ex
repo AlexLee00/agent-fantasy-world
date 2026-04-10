@@ -5,6 +5,7 @@ defmodule AFW.Guardian.Monitor do
 
   alias AFW.Brain.Interface
   alias AFW.Chain.Client
+  alias AFW.Guardian.Metrics, as: GuardianMetrics
   alias AFW.Guardian.{Analyzer, Dashboard, Economics, Proposer}
   alias AFW.Settlement.Hub
   alias AFW.Simulation.Balance
@@ -52,6 +53,10 @@ defmodule AFW.Guardian.Monitor do
         queuedEvents: length(queued)
       })
 
+    GuardianMetrics.record_epoch(payload)
+    Logger.info("[guardian] epoch analysis: #{length(events ++ queued)} events, severity=#{payload.severity}")
+    Logger.info("[guardian] SOUL supply: minted=#{payload.economy.totalSOULMinted}, burned=#{payload.economy.totalSOULBurned}, circulating=#{payload.economy.circulatingSOUL}")
+    Logger.info("[guardian] Gini coefficient: #{payload.agents.wealthGini}")
     maybe_trigger_freeze(payload)
     next_state = maybe_emit_world_event(economics, payload, state)
     _ = Dashboard.write(payload)

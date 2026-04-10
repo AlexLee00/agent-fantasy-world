@@ -10,10 +10,13 @@ defmodule AFW.Application do
       {AFW.Chain.Cache, []},
       {AFW.Chain.Writer, Application.get_all_env(:afw)},
       {AFW.Settlement.Hub, []},
+      {AFW.Settlement.Metrics, []},
+      {AFW.Reconciliation.Metrics, []},
       {AFW.Combat.Stats, []},
       {AFW.Simulation.Metrics, []},
       {AFW.Agent.Supervisor, []},
       {AFW.Contribution.Agent, []},
+      {AFW.Guardian.Metrics, []},
       {AFW.Guardian.Monitor, []}
     ]
 
