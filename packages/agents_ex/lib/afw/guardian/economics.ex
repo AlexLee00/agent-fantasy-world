@@ -5,6 +5,7 @@ defmodule AFW.Guardian.Economics do
 
   alias AFW.Chain.Client
   alias AFW.Combat.Stats
+
   @thresholds [
     %{amount: 1_000 * 1_000_000_000_000_000_000, type: "MINI"},
     %{amount: 5_000 * 1_000_000_000_000_000_000, type: "ZONE"},
@@ -14,6 +15,7 @@ defmodule AFW.Guardian.Economics do
   def snapshot do
     queued = queued_events()
     optimistic = optimistic_balances()
+
     tasks = [
       Task.async(fn -> {:soul_metrics, Client.soul_metrics()} end),
       Task.async(fn -> {:combat, Stats.snapshot()} end),
@@ -32,8 +34,17 @@ defmodule AFW.Guardian.Economics do
       |> Enum.reject(&is_nil/1)
       |> Map.new()
 
-    metrics = Map.get(results, :soul_metrics, %{total_minted: 0, total_burned: 0, total_supply: 0})
-    combat = Map.get(results, :combat, %{fight_attempts: 0, fight_successes: 0, fight_failures: 0, success_rate: 0.0})
+    metrics =
+      Map.get(results, :soul_metrics, %{total_minted: 0, total_burned: 0, total_supply: 0})
+
+    combat =
+      Map.get(results, :combat, %{
+        fight_attempts: 0,
+        fight_successes: 0,
+        fight_failures: 0,
+        success_rate: 0.0
+      })
+
     treasury_balance = Map.get(results, :treasury_balance, 0)
     orders = Map.get(results, :orders, [])
 
@@ -135,12 +146,13 @@ defmodule AFW.Guardian.Economics do
         |> Enum.with_index(1)
         |> Enum.reduce(0, fn {value, idx}, acc -> acc + idx * value end)
 
-      Float.round((2 * weighted_sum) / (count * sum) - (count + 1) / count, 4)
+      Float.round(2 * weighted_sum / (count * sum) - (count + 1) / count, 4)
     end
   end
 
   defp trade_volume(orders, queued) do
-    active_value = Enum.reduce(orders, 0, fn order, acc -> acc + order.price_in_soul * order.amount end)
+    active_value =
+      Enum.reduce(orders, 0, fn order, acc -> acc + order.price_in_soul * order.amount end)
 
     queued_value =
       queued
@@ -163,7 +175,9 @@ defmodule AFW.Guardian.Economics do
 
   defp log_snapshot(snapshot) do
     top = snapshot.soul.balances |> Enum.max_by(& &1.total, fn -> %{agent_id: nil, total: 0} end)
-    bottom = snapshot.soul.balances |> Enum.min_by(& &1.total, fn -> %{agent_id: nil, total: 0} end)
+
+    bottom =
+      snapshot.soul.balances |> Enum.min_by(& &1.total, fn -> %{agent_id: nil, total: 0} end)
 
     Logger.info(
       "[economics] SOUL: minted=#{snapshot.soul.total_minted} burned=#{snapshot.soul.total_burned} circulating=#{snapshot.soul.circulating} inflation=#{Float.round(snapshot.soul.inflation_rate * 100, 2)}%"

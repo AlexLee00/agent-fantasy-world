@@ -44,31 +44,44 @@ defmodule AFW.Guardian.Monitor do
     ai_analysis = brain_analysis(events, economics)
     epoch_no = GuardianMetrics.snapshot().epochsAnalyzed + 1
 
-    Logger.info("[guardian] epoch #{epoch_no} started: scanning #{length(events ++ queued)} events")
+    Logger.info(
+      "[guardian] epoch #{epoch_no} started: scanning #{length(events ++ queued)} events"
+    )
 
     payload =
-      Analyzer.analyze(events ++ queued, %{
-        soul: economics.soul,
-        wealth: economics.wealth,
-        combat: economics.combat,
-        treasury: economics.treasury,
-        total_minted: economics.soul.total_minted,
-        total_burned: economics.soul.total_burned,
-        total_supply: economics.soul.circulating,
-        wealth_gini: economics.wealth.gini,
-        combat_count: economics.combat.total_fights,
-        agent_win_rate: economics.combat.win_rate,
-        treasury_balance: economics.treasury.balance,
-        next_event: economics.treasury.next_threshold
-      }, ai_analysis)
+      Analyzer.analyze(
+        events ++ queued,
+        %{
+          soul: economics.soul,
+          wealth: economics.wealth,
+          combat: economics.combat,
+          treasury: economics.treasury,
+          total_minted: economics.soul.total_minted,
+          total_burned: economics.soul.total_burned,
+          total_supply: economics.soul.circulating,
+          wealth_gini: economics.wealth.gini,
+          combat_count: economics.combat.total_fights,
+          agent_win_rate: economics.combat.win_rate,
+          treasury_balance: economics.treasury.balance,
+          next_event: economics.treasury.next_threshold
+        },
+        ai_analysis
+      )
       |> Map.merge(%{
         balanceProposals: Balance.proposals(),
         queuedEvents: length(queued)
       })
 
     GuardianMetrics.record_epoch(payload)
-    Logger.info("[guardian] epoch #{epoch_no} result: severity=#{payload.severity}, anomalies=#{length(payload.anomalies || [])}")
-    Logger.info("[guardian] SOUL supply: minted=#{payload.economy.totalSOULMinted}, burned=#{payload.economy.totalSOULBurned}, circulating=#{payload.economy.circulatingSOUL}")
+
+    Logger.info(
+      "[guardian] epoch #{epoch_no} result: severity=#{payload.severity}, anomalies=#{length(payload.anomalies || [])}"
+    )
+
+    Logger.info(
+      "[guardian] SOUL supply: minted=#{payload.economy.totalSOULMinted}, burned=#{payload.economy.totalSOULBurned}, circulating=#{payload.economy.circulatingSOUL}"
+    )
+
     Logger.info("[guardian] Gini coefficient: #{payload.agents.wealthGini}")
     maybe_trigger_freeze(payload)
     next_state = maybe_emit_world_event(economics, payload, state)
@@ -79,9 +92,15 @@ defmodule AFW.Guardian.Monitor do
   end
 
   def handle_info({:reconciliation_mismatch, agent_id, on_chain, local}, state) do
-    mismatches = Map.update(state.mismatches, agent_id, %{count: 1, on_chain: on_chain, local: local}, fn entry ->
-      %{entry | count: entry.count + 1, on_chain: on_chain, local: local}
-    end)
+    mismatches =
+      Map.update(
+        state.mismatches,
+        agent_id,
+        %{count: 1, on_chain: on_chain, local: local},
+        fn entry ->
+          %{entry | count: entry.count + 1, on_chain: on_chain, local: local}
+        end
+      )
 
     {:noreply, %{state | mismatches: mismatches}}
   end
@@ -111,8 +130,15 @@ defmodule AFW.Guardian.Monitor do
   defp brain_analysis(events, economics) do
     prompt = guardian_prompt(events, economics)
 
-    case Interface.decide(%{analysis_type: :guardian, prompt: prompt, events: events, economics: economics}) do
-      {:ok, payload} -> payload
+    case Interface.decide(%{
+           analysis_type: :guardian,
+           prompt: prompt,
+           events: events,
+           economics: economics
+         }) do
+      {:ok, payload} ->
+        payload
+
       {:error, reason} ->
         Logger.warning("Guardian brain analysis fallback: #{inspect(reason)}")
         %{}
@@ -129,11 +155,13 @@ defmodule AFW.Guardian.Monitor do
     """
   end
 
-  defp maybe_trigger_freeze(%{severity: severity} = payload) when severity in ["high", "critical"] do
+  defp maybe_trigger_freeze(%{severity: severity} = payload)
+       when severity in ["high", "critical"] do
     wallet =
       payload.anomalies
       |> Enum.find_value(fn anomaly ->
-        anomaly[:wallet] || anomaly["wallet"] || get_in(anomaly, [:details, :wallet]) || get_in(anomaly, ["details", "wallet"])
+        anomaly[:wallet] || anomaly["wallet"] || get_in(anomaly, [:details, :wallet]) ||
+          get_in(anomaly, ["details", "wallet"])
       end)
 
     if wallet, do: Proposer.submit_freeze_proposal(wallet, payload.evidence)
@@ -164,7 +192,12 @@ defmodule AFW.Guardian.Monitor do
         }
       })
 
-      Phoenix.PubSub.broadcast(AFW.PubSub, "guardian", {:world_event_triggered, %{type: triggered, payload: payload}})
+      Phoenix.PubSub.broadcast(
+        AFW.PubSub,
+        "guardian",
+        {:world_event_triggered, %{type: triggered, payload: payload}}
+      )
+
       %{state | world_events: Map.put(state.world_events, triggered, DateTime.utc_now())}
     else
       state
@@ -190,11 +223,21 @@ defmodule AFW.Guardian.Monitor do
   end
 
   defp normalize_event({:settlement_failed, agent_id, event_id, reason}) do
-    %{type: :settlement_failed, agent_id: agent_id, summary: "Settlement #{event_id} failed", details: inspect(reason)}
+    %{
+      type: :settlement_failed,
+      agent_id: agent_id,
+      summary: "Settlement #{event_id} failed",
+      details: inspect(reason)
+    }
   end
 
   defp normalize_event({:settlement_confirmed, agent_id, event_id, payload}) do
-    %{type: :settlement_confirmed, agent_id: agent_id, summary: "Settlement #{event_id} confirmed", details: payload}
+    %{
+      type: :settlement_confirmed,
+      agent_id: agent_id,
+      summary: "Settlement #{event_id} confirmed",
+      details: payload
+    }
   end
 
   defp normalize_event({:world_event_triggered, payload}) do

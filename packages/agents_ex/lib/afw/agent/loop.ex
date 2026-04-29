@@ -13,7 +13,9 @@ defmodule AFW.Agent.Loop do
   @target_lock_ttl_ms 30_000
   @target_lock_table :targeted_monsters
   @failed_orders_table :failed_orders
+  @pending_market_sells_table :pending_market_sells
   @failed_order_ttl_ms 300_000
+  @pending_market_sell_ttl_ms 300_000
 
   def execute_tick(state) do
     snapshot = SettlementState.get_agent_view(state.agent_id)
@@ -114,11 +116,20 @@ defmodule AFW.Agent.Loop do
     hp_ratio = hp / max_hp
 
     cond do
-      hp_ratio <= 0.7 or event.type == :survival -> %{"action" => "REST", "target" => "tavern"}
-      event.type == :trade -> %{"action" => "TRADE", "target" => "marketplace"}
-      event.type == :npc -> %{"action" => "TALK", "target" => event.target}
-      event.type == :monster and hp_ratio > 0.7 -> %{"action" => "FIGHT", "target" => event.target}
-      true -> %{"action" => "EXPLORE", "target" => event.target}
+      hp_ratio <= 0.7 or event.type == :survival ->
+        %{"action" => "REST", "target" => "tavern"}
+
+      event.type == :trade ->
+        %{"action" => "TRADE", "target" => "marketplace"}
+
+      event.type == :npc ->
+        %{"action" => "TALK", "target" => event.target}
+
+      event.type == :monster and hp_ratio > 0.7 ->
+        %{"action" => "FIGHT", "target" => event.target}
+
+      true ->
+        %{"action" => "EXPLORE", "target" => event.target}
     end
   end
 
@@ -172,12 +183,15 @@ defmodule AFW.Agent.Loop do
 
     fight_cap = fight_cap(state.class_id)
     fight_budget_ok = total_recent_fights < fight_cap
-    class_prefers_caution = state.class_id in [2, 3] and (state.tick_count == 0 or total_recent_fights >= 1)
+
+    class_prefers_caution =
+      state.class_id in [2, 3] and (state.tick_count == 0 or total_recent_fights >= 1)
 
     fight_blocked =
       action == "FIGHT" and
         (hp_ratio <= 0.7 or fight_count >= 1 or
-           ticks_since_fight < @fight_cooldown_ticks or not fight_budget_ok or class_prefers_caution)
+           ticks_since_fight < @fight_cooldown_ticks or not fight_budget_ok or
+           class_prefers_caution)
 
     cond do
       hp_ratio <= 0.5 ->
@@ -209,10 +223,17 @@ defmodule AFW.Agent.Loop do
 
   defp post_fight_fallback(context, event, talk_count, has_items, has_npcs) do
     cond do
-      has_items -> %{"action" => "TRADE", "target" => "marketplace"}
-      talk_count >= 2 -> %{"action" => "EXPLORE", "target" => "roads beyond #{context.zone["name"]}"}
-      has_npcs -> %{"action" => "TALK", "target" => event.target || "locals"}
-      true -> %{"action" => "EXPLORE", "target" => event.target || "frontier path"}
+      has_items ->
+        %{"action" => "TRADE", "target" => "marketplace"}
+
+      talk_count >= 2 ->
+        %{"action" => "EXPLORE", "target" => "roads beyond #{context.zone["name"]}"}
+
+      has_npcs ->
+        %{"action" => "TALK", "target" => event.target || "locals"}
+
+      true ->
+        %{"action" => "EXPLORE", "target" => event.target || "frontier path"}
     end
   end
 
@@ -235,8 +256,12 @@ defmodule AFW.Agent.Loop do
               agent_id: context.agent["agentId"],
               monster_id: monster.monster_id,
               zone_id: context.agent["zoneId"],
-              soul_changes: [%{agent_id: context.agent["agentId"], delta: simulation.optimistic_soul_delta}],
-              state_changes: simulation.state_changes ++ [%{agent_id: context.agent["agentId"], field: :hp, value: simulation.hp_after}],
+              soul_changes: [
+                %{agent_id: context.agent["agentId"], delta: simulation.optimistic_soul_delta}
+              ],
+              state_changes:
+                simulation.state_changes ++
+                  [%{agent_id: context.agent["agentId"], field: :hp, value: simulation.hp_after}],
               hp_after: simulation.hp_after,
               summary: simulation.summary
             }
@@ -286,12 +311,14 @@ defmodule AFW.Agent.Loop do
                   %{agent_id: context.agent["agentId"], field: :statusName, value: "RESTING"},
                   %{agent_id: context.agent["agentId"], field: :hp, value: healed_stats["hp"]}
                 ],
-                summary: "REST #{tavern.name}##{tavern.npc_id} -> HP #{previous_hp}→#{healed_stats["hp"]}, -#{format_soul(price_entry.price)} SOUL"
+                summary:
+                  "REST #{tavern.name}##{tavern.npc_id} -> HP #{previous_hp}→#{healed_stats["hp"]}, -#{format_soul(price_entry.price)} SOUL"
               }
             })
 
             %{
-              summary: "REST #{tavern.name}##{tavern.npc_id} -> HP #{previous_hp}→#{healed_stats["hp"]}, -#{format_soul(price_entry.price)} SOUL (settling...)",
+              summary:
+                "REST #{tavern.name}##{tavern.npc_id} -> HP #{previous_hp}→#{healed_stats["hp"]}, -#{format_soul(price_entry.price)} SOUL (settling...)",
               status: :resting
             }
         end
@@ -312,7 +339,10 @@ defmodule AFW.Agent.Loop do
   end
 
   defp explore(_context, event) do
-    %{summary: "EXPLORE #{event.target || "the frontier"} -> logged movement off-chain.", status: :traveling}
+    %{
+      summary: "EXPLORE #{event.target || "the frontier"} -> logged movement off-chain.",
+      status: :traveling
+    }
   end
 
   defp trade(context) do
@@ -359,7 +389,11 @@ defmodule AFW.Agent.Loop do
   defp offchain_rest(context, source) do
     previous_hp = get_in(context, [:agent, "stats", "hp"]) || 0
     healed_hp = min(previous_hp + 10, get_in(context, [:agent, "stats", "maxHp"]) || previous_hp)
-    %{summary: "REST #{source} -> HP #{previous_hp}→#{healed_hp} (off-chain recovery)", status: :resting}
+
+    %{
+      summary: "REST #{source} -> HP #{previous_hp}→#{healed_hp} (off-chain recovery)",
+      status: :resting
+    }
   end
 
   defp heal_stats(stats) do
@@ -386,44 +420,92 @@ defmodule AFW.Agent.Loop do
       |> Enum.sort_by(& &1.price_in_soul)
       |> List.first()
 
-    foreign || (orders |> Enum.sort_by(& &1.price_in_soul) |> List.first())
+    foreign || orders |> Enum.sort_by(& &1.price_in_soul) |> List.first()
   end
 
   defp maybe_list_item(context) do
     fresh_items = Reader.get_agent_items(context.agent["observer"])
+
     existing_orders =
       Reader.get_active_orders()
-      |> Enum.filter(&(String.downcase(&1.seller || "") == String.downcase(context.agent["observer"] || "")))
+      |> Enum.filter(
+        &(String.downcase(&1.seller || "") == String.downcase(context.agent["observer"] || ""))
+      )
       |> MapSet.new(& &1.item_id)
 
     case fresh_items do
       [item | _] ->
-        if MapSet.member?(existing_orders, item.item_id) do
-          %{summary: "TRADE skipped, an active order already exists for item##{item.item_id}.", status: :alive}
-        else
-        price_in_soul = trade_price(item)
-
-        Hub.submit_event(%{
-          type: :marketplace_trade,
-          priority: :batch,
-          agent_id: context.agent["agentId"],
-          data: %{
-            agent_id: context.agent["agentId"],
-            mode: :sell,
-            item_id: item.item_id,
-            amount: 1,
-            price_in_soul: price_in_soul,
-            soul_changes: [],
-            summary: "TRADE sell #{item.name}##{item.item_id} -> listed #{format_soul(price_in_soul)} SOUL"
+        if MapSet.member?(existing_orders, item.item_id) or
+             pending_market_sell?(context.agent["agentId"], item.item_id) do
+          %{
+            summary: "TRADE skipped, an active order already exists for item##{item.item_id}.",
+            status: :alive
           }
-        })
+        else
+          price_in_soul = trade_price(item)
+          lock_market_sell(context.agent["agentId"], item.item_id)
 
-        %{summary: "TRADE sell #{item.name}##{item.item_id} -> listed #{format_soul(price_in_soul)} SOUL (settling...)", status: :alive}
+          Hub.submit_event(%{
+            type: :marketplace_trade,
+            priority: :batch,
+            agent_id: context.agent["agentId"],
+            data: %{
+              agent_id: context.agent["agentId"],
+              mode: :sell,
+              item_id: item.item_id,
+              amount: 1,
+              price_in_soul: price_in_soul,
+              soul_changes: [],
+              summary:
+                "TRADE sell #{item.name}##{item.item_id} -> listed #{format_soul(price_in_soul)} SOUL"
+            }
+          })
+
+          %{
+            summary:
+              "TRADE sell #{item.name}##{item.item_id} -> listed #{format_soul(price_in_soul)} SOUL (settling...)",
+            status: :alive
+          }
         end
 
       [] ->
         %{summary: "No valid trade was available.", status: :alive}
     end
+  end
+
+  defp pending_market_sell?(agent_id, item_id) do
+    ensure_pending_market_sells_table!()
+    cleanup_pending_market_sells()
+
+    if :ets.lookup(@pending_market_sells_table, {agent_id, item_id}) != [] do
+      true
+    else
+      pending_market_sell_event?(agent_id, item_id)
+    end
+  end
+
+  defp pending_market_sell_event?(agent_id, item_id) do
+    case :ets.whereis(:event_queue) do
+      :undefined ->
+        false
+
+      _ ->
+        :event_queue
+        |> :ets.tab2list()
+        |> Enum.any?(fn {_key, event} ->
+          event.type == :marketplace_trade and event.agent_id == agent_id and
+            Map.get(event.data, :mode) == :sell and Map.get(event.data, :item_id) == item_id
+        end)
+    end
+  end
+
+  defp lock_market_sell(agent_id, item_id) do
+    ensure_pending_market_sells_table!()
+
+    :ets.insert(
+      @pending_market_sells_table,
+      {{agent_id, item_id}, System.monotonic_time(:millisecond)}
+    )
   end
 
   defp available_trade_orders do
@@ -432,7 +514,24 @@ defmodule AFW.Agent.Loop do
     blacklisted = failed_order_ids()
 
     Reader.get_active_orders()
-    |> Enum.reject(&MapSet.member?(blacklisted, &1.order_id))
+    |> Enum.reject(
+      &(MapSet.member?(blacklisted, &1.order_id) or pending_market_buy?(&1.order_id))
+    )
+  end
+
+  defp pending_market_buy?(order_id) do
+    case :ets.whereis(:event_queue) do
+      :undefined ->
+        false
+
+      _ ->
+        :event_queue
+        |> :ets.tab2list()
+        |> Enum.any?(fn {_key, event} ->
+          event.type == :marketplace_trade and Map.get(event.data, :mode) == :buy and
+            Map.get(event.data, :order_id) == order_id
+        end)
+    end
   end
 
   defp failed_order_ids do
@@ -445,7 +544,13 @@ defmodule AFW.Agent.Loop do
   defp ensure_failed_orders_table! do
     case :ets.whereis(@failed_orders_table) do
       :undefined ->
-        :ets.new(@failed_orders_table, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
+        :ets.new(@failed_orders_table, [
+          :named_table,
+          :public,
+          :set,
+          read_concurrency: true,
+          write_concurrency: true
+        ])
 
       _ ->
         @failed_orders_table
@@ -460,6 +565,34 @@ defmodule AFW.Agent.Loop do
     |> Enum.each(fn {order_id, failed_at} ->
       if now - failed_at > @failed_order_ttl_ms do
         :ets.delete(@failed_orders_table, order_id)
+      end
+    end)
+  end
+
+  defp ensure_pending_market_sells_table! do
+    case :ets.whereis(@pending_market_sells_table) do
+      :undefined ->
+        :ets.new(@pending_market_sells_table, [
+          :named_table,
+          :public,
+          :set,
+          read_concurrency: true,
+          write_concurrency: true
+        ])
+
+      _ ->
+        @pending_market_sells_table
+    end
+  end
+
+  defp cleanup_pending_market_sells do
+    now = System.monotonic_time(:millisecond)
+
+    @pending_market_sells_table
+    |> :ets.tab2list()
+    |> Enum.each(fn {key, inserted_at} ->
+      if now - inserted_at > @pending_market_sell_ttl_ms do
+        :ets.delete(@pending_market_sells_table, key)
       end
     end)
   end
@@ -481,7 +614,11 @@ defmodule AFW.Agent.Loop do
 
     case available do
       [target | _] ->
-        :ets.insert(@target_lock_table, {target.monster_id, agent_id, System.monotonic_time(:millisecond)})
+        :ets.insert(
+          @target_lock_table,
+          {target.monster_id, agent_id, System.monotonic_time(:millisecond)}
+        )
+
         {:ok, target}
 
       [] ->
@@ -492,7 +629,13 @@ defmodule AFW.Agent.Loop do
   defp ensure_target_table! do
     case :ets.whereis(@target_lock_table) do
       :undefined ->
-        :ets.new(@target_lock_table, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
+        :ets.new(@target_lock_table, [
+          :named_table,
+          :public,
+          :set,
+          read_concurrency: true,
+          write_concurrency: true
+        ])
 
       _ ->
         @target_lock_table

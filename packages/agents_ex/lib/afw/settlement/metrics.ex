@@ -6,6 +6,8 @@ defmodule AFW.Settlement.Metrics do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
+  alias AFW.Chain.ReceiptDiagnostics
+
   def record_submitted(event), do: GenServer.cast(__MODULE__, {:submitted, event})
   def record_retry(event), do: GenServer.cast(__MODULE__, {:retry, event})
   def record_confirmed(event), do: GenServer.cast(__MODULE__, {:confirmed, event})
@@ -22,7 +24,8 @@ defmodule AFW.Settlement.Metrics do
        counts: %{total: 0, confirmed: 0, failed: 0, retrying: 0, discarded: 0, retargeted: 0},
        by_type: %{},
        recent_failures: [],
-       discard_reasons: %{}
+       discard_reasons: %{},
+       revert_reasons: %{}
      }}
   end
 
@@ -60,6 +63,7 @@ defmodule AFW.Settlement.Metrics do
       |> update_counts(:discarded)
       |> update_type(event.type, :failed, 1)
       |> update_reason(reason)
+      |> update_revert_reason(reason)
       |> Map.update!(:recent_failures, fn failures ->
         [%{id: event.id, type: event.type, reason: inspect(reason)} | failures] |> Enum.take(20)
       end)
@@ -73,6 +77,7 @@ defmodule AFW.Settlement.Metrics do
       state
       |> update_counts(:failed)
       |> update_type(event.type, :failed, 1)
+      |> update_revert_reason(reason)
       |> Map.update!(:recent_failures, fn failures ->
         [%{id: event.id, type: event.type, reason: inspect(reason)} | failures] |> Enum.take(20)
       end)
@@ -110,15 +115,30 @@ defmodule AFW.Settlement.Metrics do
 
   defp update_type(state, type, key, delta) do
     update_in(state.by_type, fn by_type ->
-      Map.update(by_type, type, %{count: 0, confirmed: 0, failed: 0, settle_ms_total: 0}, fn entry ->
-        Map.update(entry, key, delta, &(&1 + delta))
-      end)
+      Map.update(
+        by_type,
+        type,
+        %{count: 0, confirmed: 0, failed: 0, settle_ms_total: 0},
+        fn entry ->
+          Map.update(entry, key, delta, &(&1 + delta))
+        end
+      )
     end)
   end
 
   defp update_reason(state, reason) do
     normalized = normalize_reason(reason)
     update_in(state.discard_reasons, &Map.update(&1, normalized, 1, fn count -> count + 1 end))
+  end
+
+  defp update_revert_reason(state, reason) do
+    case normalize_revert_reason(reason) do
+      nil ->
+        state
+
+      normalized ->
+        update_in(state.revert_reasons, &Map.update(&1, normalized, 1, fn count -> count + 1 end))
+    end
   end
 
   defp settle_ms(event) do
@@ -153,13 +173,47 @@ defmodule AFW.Settlement.Metrics do
            }}
         end),
       recentFailures: state.recent_failures,
-      discardReasons: state.discard_reasons
+      discardReasons: state.discard_reasons,
+      revertReasons: state.revert_reasons
     }
   end
 
   defp normalize_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp normalize_reason(reason) when is_binary(reason), do: reason
   defp normalize_reason(reason), do: inspect(reason)
+
+  defp normalize_revert_reason(reason) do
+    text = normalize_reason(reason)
+
+    cond do
+      String.contains?(text, "reverted:") ->
+        text
+        |> String.split("reverted:")
+        |> List.last()
+        |> String.trim()
+        |> empty_to_nil()
+
+      String.contains?(text, "Transaction dry run reverted:") ->
+        text
+        |> String.split("Transaction dry run reverted:")
+        |> List.last()
+        |> String.trim()
+        |> empty_to_nil()
+
+      String.contains?(text, "CustomError(") ->
+        Regex.run(~r/CustomError\([^)]+\)/, text)
+        |> case do
+          [match] -> match
+          _ -> nil
+        end
+
+      true ->
+        ReceiptDiagnostics.extract_revert_reason(text)
+    end
+  end
+
+  defp empty_to_nil(""), do: nil
+  defp empty_to_nil(value), do: value
 
   defp avg_total(by_type) do
     totals =

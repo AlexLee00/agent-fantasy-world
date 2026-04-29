@@ -42,7 +42,14 @@ defmodule AFW.Chain.Reader do
     orders_task = Task.async(fn -> active_orders() end)
     treasury_task = Task.async(fn -> get_treasury_balance() end)
 
-    zone = safe_await(zone_task, %{"zoneId" => zone_id, "name" => "Unknown", "dangerLabel" => "UNKNOWN", "connections" => []})
+    zone =
+      safe_await(zone_task, %{
+        "zoneId" => zone_id,
+        "name" => "Unknown",
+        "dangerLabel" => "UNKNOWN",
+        "connections" => []
+      })
+
     monsters = safe_await(monsters_task, [])
     npcs = safe_await(npcs_task, [])
     items = safe_await(items_task, [])
@@ -62,7 +69,9 @@ defmodule AFW.Chain.Reader do
 
   def get_agent(agent_id) do
     [agent_tuple] = call_contract(:agent_registry, "getAgent", [agent_id])
-    {agent_key, observer, class_id, status_id, level, experience, zone_id, personality, stats, _, _, _} = agent_tuple
+
+    {agent_key, observer, class_id, status_id, level, experience, zone_id, personality, stats, _,
+     _, _} = agent_tuple
 
     %{
       "agentId" => agent_key,
@@ -82,7 +91,9 @@ defmodule AFW.Chain.Reader do
   def get_zone(zone_id) do
     Cache.get_or_fetch({:zone, zone_id}, @zone_ttl, fn ->
       [zone_tuple] = call_contract(:world_map, "getZone", [zone_id])
-      {zone_key, name, korean_name, danger_id, required_nodes, max_agents, unlocked, connections, unlocked_at} =
+
+      {zone_key, name, korean_name, danger_id, required_nodes, max_agents, unlocked, connections,
+       unlocked_at} =
         zone_tuple
 
       %{
@@ -108,7 +119,11 @@ defmodule AFW.Chain.Reader do
         []
       else
         1..total
-        |> Task.async_stream(&monster_entry(&1, zone_id), timeout: @task_timeout, max_concurrency: 8, ordered: false)
+        |> Task.async_stream(&monster_entry(&1, zone_id),
+          timeout: @task_timeout,
+          max_concurrency: 8,
+          ordered: false
+        )
         |> Enum.flat_map(fn
           {:ok, nil} -> []
           {:ok, entry} -> [entry]
@@ -128,7 +143,11 @@ defmodule AFW.Chain.Reader do
       []
     else
       1..total
-      |> Task.async_stream(&monster_entry(&1, zone_id), timeout: @task_timeout, max_concurrency: 8, ordered: false)
+      |> Task.async_stream(&monster_entry(&1, zone_id),
+        timeout: @task_timeout,
+        max_concurrency: 8,
+        ordered: false
+      )
       |> Enum.flat_map(fn
         {:ok, nil} -> []
         {:ok, entry} -> [entry]
@@ -148,7 +167,11 @@ defmodule AFW.Chain.Reader do
         []
       else
         1..total
-        |> Task.async_stream(&npc_entry(&1, zone_id), timeout: @task_timeout, max_concurrency: 8, ordered: false)
+        |> Task.async_stream(&npc_entry(&1, zone_id),
+          timeout: @task_timeout,
+          max_concurrency: 8,
+          ordered: false
+        )
         |> Enum.flat_map(fn
           {:ok, nil} -> []
           {:ok, entry} -> [entry]
@@ -169,7 +192,11 @@ defmodule AFW.Chain.Reader do
       []
     else
       1..total
-      |> Task.async_stream(&item_entry(owner, &1), timeout: @task_timeout, max_concurrency: 8, ordered: false)
+      |> Task.async_stream(&item_entry(owner, &1),
+        timeout: @task_timeout,
+        max_concurrency: 8,
+        ordered: false
+      )
       |> Enum.flat_map(fn
         {:ok, nil} -> []
         {:ok, entry} -> [entry]
@@ -189,7 +216,11 @@ defmodule AFW.Chain.Reader do
         []
       else
         1..total
-        |> Task.async_stream(&order_entry/1, timeout: @task_timeout, max_concurrency: 8, ordered: false)
+        |> Task.async_stream(&order_entry/1,
+          timeout: @task_timeout,
+          max_concurrency: 8,
+          ordered: false
+        )
         |> Enum.flat_map(fn
           {:ok, nil} -> []
           {:ok, entry} -> [entry]
@@ -209,7 +240,11 @@ defmodule AFW.Chain.Reader do
       []
     else
       1..total
-      |> Task.async_stream(&order_entry/1, timeout: @task_timeout, max_concurrency: 8, ordered: false)
+      |> Task.async_stream(&order_entry/1,
+        timeout: @task_timeout,
+        max_concurrency: 8,
+        ordered: false
+      )
       |> Enum.flat_map(fn
         {:ok, nil} -> []
         {:ok, entry} -> [entry]
@@ -324,8 +359,23 @@ defmodule AFW.Chain.Reader do
     else
       0..(total - 1)
       |> Enum.map(fn index ->
-        address = call_contract(:node_registry, "activeNodes", [index]) |> List.first() |> encode_address()
-        [operator, tier, _spec, _staked, _registered_at, _uptime_blocks, pending_reward, _total_slashings, active, endpoint] =
+        address =
+          call_contract(:node_registry, "activeNodes", [index])
+          |> List.first()
+          |> encode_address()
+
+        [
+          operator,
+          tier,
+          _spec,
+          _staked,
+          _registered_at,
+          _uptime_blocks,
+          pending_reward,
+          _total_slashings,
+          active,
+          endpoint
+        ] =
           call_contract(:node_registry, "nodes", [address])
 
         %{
@@ -350,7 +400,20 @@ defmodule AFW.Chain.Reader do
 
     monster_creators =
       Enum.map(1..monster_total, fn type_id ->
-        [_name, _danger, _min_hp, _max_hp, _min_atk, _max_atk, _min_def, _max_def, _min_soul, _max_soul, creator, active] =
+        [
+          _name,
+          _danger,
+          _min_hp,
+          _max_hp,
+          _min_atk,
+          _max_atk,
+          _min_def,
+          _max_def,
+          _min_soul,
+          _max_soul,
+          creator,
+          active
+        ] =
           call_contract(:monster_registry, "monsterTypes", [type_id])
 
         %{address: encode_address(creator), content_uses: if(active, do: 20, else: 0)}
@@ -358,7 +421,19 @@ defmodule AFW.Chain.Reader do
 
     quest_creators =
       Enum.map(1..quest_total, fn quest_id ->
-        [_quest_id, _name, _description, _zone_id, _difficulty, _condition, reward, creator, _bps, active, _created_at] =
+        [
+          _quest_id,
+          _name,
+          _description,
+          _zone_id,
+          _difficulty,
+          _condition,
+          reward,
+          creator,
+          _bps,
+          active,
+          _created_at
+        ] =
           call_contract(:quest_engine, "quests", [quest_id])
 
         soul_amount =
@@ -367,13 +442,19 @@ defmodule AFW.Chain.Reader do
             _ -> 0
           end
 
-        %{address: encode_address(creator), content_uses: if(active, do: max(div(soul_amount, 10 ** 18), 1), else: 0)}
+        %{
+          address: encode_address(creator),
+          content_uses: if(active, do: max(div(soul_amount, 10 ** 18), 1), else: 0)
+        }
       end)
 
     (monster_creators ++ quest_creators)
     |> Enum.group_by(& &1.address)
     |> Enum.map(fn {address, rows} ->
-      %{address: address, content_uses: Enum.reduce(rows, 0, fn row, acc -> acc + row.content_uses end)}
+      %{
+        address: address,
+        content_uses: Enum.reduce(rows, 0, fn row, acc -> acc + row.content_uses end)
+      }
     end)
   rescue
     _ -> []
@@ -394,7 +475,7 @@ defmodule AFW.Chain.Reader do
       "data" => data
     }
 
-    case Pool.request(fn url -> HttpClient.eth_call(tx, "latest", [url: url]) end) do
+    case Pool.request(fn url -> HttpClient.eth_call(tx, "latest", url: url) end) do
       {:ok, result} ->
         ABI.decode_call_result(function_name, result, abi_name(contract_key), length(args))
 

@@ -26,17 +26,22 @@ defmodule AFWWeb.DashboardLive do
   end
 
   def handle_info({:settlement_optimistic, agent_id, settlement}, socket) do
-    {:noreply, assign(socket, agents: update_agent_settlement(socket.assigns.agents, agent_id, settlement))}
+    {:noreply,
+     assign(socket, agents: update_agent_settlement(socket.assigns.agents, agent_id, settlement))}
   end
 
   def handle_info({:settlement_confirmed, agent_id, _event_id, _payload}, socket) do
     settlement = AFW.Settlement.State.settlement_summary(agent_id)
-    {:noreply, assign(socket, agents: update_agent_settlement(socket.assigns.agents, agent_id, settlement))}
+
+    {:noreply,
+     assign(socket, agents: update_agent_settlement(socket.assigns.agents, agent_id, settlement))}
   end
 
   def handle_info({:settlement_failed, agent_id, _event_id, _reason}, socket) do
     settlement = AFW.Settlement.State.settlement_summary(agent_id)
-    {:noreply, assign(socket, agents: update_agent_settlement(socket.assigns.agents, agent_id, settlement))}
+
+    {:noreply,
+     assign(socket, agents: update_agent_settlement(socket.assigns.agents, agent_id, settlement))}
   end
 
   def handle_info({:guardian_metrics, payload}, socket) do

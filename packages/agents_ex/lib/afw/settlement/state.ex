@@ -53,12 +53,12 @@ defmodule AFW.Settlement.State do
   end
 
   def correct_confirmed(agent_id, value) do
-    state = optimistic_state(agent_id)
-    put_state(agent_id, Map.put(state, :confirmed_soul, value))
+    put_confirmed_for_observer(agent_id, value)
   end
 
   def correct_offchain(agent_id, changes) when is_map(changes) do
     state = optimistic_state(agent_id)
+
     next_offchain =
       Enum.reduce(changes, Map.get(state, :offchain, %{}), fn {field, value}, acc ->
         put_offchain_field(acc, to_string(field), value)
@@ -78,7 +78,10 @@ defmodule AFW.Settlement.State do
     next_state =
       state
       |> Map.put(:optimistic_delta, Map.get(state, :optimistic_delta, 0) + delta)
-      |> Map.put(:offchain, apply_state_changes(Map.get(state, :offchain, %{}), state_changes(event)))
+      |> Map.put(
+        :offchain,
+        apply_state_changes(Map.get(state, :offchain, %{}), state_changes(event))
+      )
       |> Map.put(:recent_events, recent)
       |> Map.put(:pending_events, Map.put(Map.get(state, :pending_events, %{}), event.id, event))
 
@@ -94,9 +97,17 @@ defmodule AFW.Settlement.State do
       |> Map.put(:confirmed_soul, confirmed)
       |> Map.put(:optimistic_delta, recalc_delta(state, event.id))
       |> Map.put(:pending_events, Map.delete(Map.get(state, :pending_events, %{}), event.id))
-      |> Map.put(:recent_events, [event_summary(event, :confirmed) | Enum.reject(Map.get(state, :recent_events, []), &(&1.id == event.id))] |> Enum.take(10))
+      |> Map.put(
+        :recent_events,
+        [
+          event_summary(event, :confirmed)
+          | Enum.reject(Map.get(state, :recent_events, []), &(&1.id == event.id))
+        ]
+        |> Enum.take(10)
+      )
 
     put_state(event.agent_id, next_state)
+    put_confirmed_for_observer(event.agent_id, confirmed)
   end
 
   def rollback_event(event) do
@@ -106,7 +117,14 @@ defmodule AFW.Settlement.State do
       state
       |> Map.put(:optimistic_delta, recalc_delta(state, event.id))
       |> Map.put(:pending_events, Map.delete(Map.get(state, :pending_events, %{}), event.id))
-      |> Map.put(:recent_events, [event_summary(event, :failed) | Enum.reject(Map.get(state, :recent_events, []), &(&1.id == event.id))] |> Enum.take(10))
+      |> Map.put(
+        :recent_events,
+        [
+          event_summary(event, :failed)
+          | Enum.reject(Map.get(state, :recent_events, []), &(&1.id == event.id))
+        ]
+        |> Enum.take(10)
+      )
 
     put_state(event.agent_id, next_state)
   end
@@ -127,6 +145,7 @@ defmodule AFW.Settlement.State do
 
   def settlement_summary(agent_id) do
     {display_total, pending} = display_soul(agent_id)
+
     %{
       confirmedSoul: confirmed_soul(agent_id),
       pendingSoul: pending,
@@ -134,6 +153,25 @@ defmodule AFW.Settlement.State do
       spendableSoul: spendable_soul(agent_id),
       recentEvents: Map.get(optimistic_state(agent_id), :recent_events, [])
     }
+  end
+
+  def has_pending_settlement?(agent_id) do
+    pending_event_count(agent_id) > 0 or get_locked_soul(agent_id) > 0
+  end
+
+  def has_pending_settlement_for_observer?(agent_id) do
+    observer = fetch_observer(agent_id)
+
+    [agent_id | all_agent_ids()]
+    |> Enum.uniq()
+    |> Enum.filter(&(fetch_observer(&1) == observer))
+    |> Enum.any?(&has_pending_settlement?/1)
+  end
+
+  def pending_event_count(agent_id) do
+    optimistic_state(agent_id)
+    |> Map.get(:pending_events, %{})
+    |> map_size()
   end
 
   def optimistic_state(agent_id) do
@@ -169,6 +207,29 @@ defmodule AFW.Settlement.State do
     Client.get_soul_balance(agent["observer"])
   end
 
+  defp put_confirmed_for_observer(agent_id, value) do
+    observer = fetch_observer(agent_id)
+    put_state(agent_id, Map.put(optimistic_state(agent_id), :confirmed_soul, value))
+
+    [agent_id | all_agent_ids()]
+    |> Enum.uniq()
+    |> Enum.filter(&(fetch_observer(&1) == observer))
+    |> Enum.each(fn peer_agent_id ->
+      state = optimistic_state(peer_agent_id)
+      put_state(peer_agent_id, Map.put(state, :confirmed_soul, value))
+    end)
+
+    value
+  end
+
+  defp fetch_observer(agent_id) do
+    agent_id
+    |> Client.get_agent()
+    |> Map.get("observer")
+  rescue
+    _ -> nil
+  end
+
   defp optimistic_delta_for(event) do
     event
     |> soul_changes()
@@ -176,8 +237,11 @@ defmodule AFW.Settlement.State do
     |> Enum.reduce(0, fn change, acc -> acc + (change[:delta] || change["delta"] || 0) end)
   end
 
-  defp state_changes(event), do: Map.get(event.data, :state_changes) || Map.get(event.data, "state_changes") || []
-  defp soul_changes(event), do: Map.get(event.data, :soul_changes) || Map.get(event.data, "soul_changes") || []
+  defp state_changes(event),
+    do: Map.get(event.data, :state_changes) || Map.get(event.data, "state_changes") || []
+
+  defp soul_changes(event),
+    do: Map.get(event.data, :soul_changes) || Map.get(event.data, "soul_changes") || []
 
   defp apply_state_changes(offchain, changes) do
     Enum.reduce(changes, offchain, fn change, acc ->
@@ -200,7 +264,9 @@ defmodule AFW.Settlement.State do
       id: event.id,
       type: event.type,
       status: status,
-      summary: Map.get(event.data, :summary) || Map.get(event.data, "summary") || Atom.to_string(event.type)
+      summary:
+        Map.get(event.data, :summary) || Map.get(event.data, "summary") ||
+          Atom.to_string(event.type)
     }
   end
 
@@ -215,7 +281,8 @@ defmodule AFW.Settlement.State do
     end)
   end
 
-  defp put_offchain_field(acc, field, value) when field in ["hp", "maxHp", "mp", "maxMp", "attack", "defense", "speed"] do
+  defp put_offchain_field(acc, field, value)
+       when field in ["hp", "maxHp", "mp", "maxMp", "attack", "defense", "speed"] do
     Map.put(acc, {:stats, field}, value)
   end
 
@@ -230,8 +297,17 @@ defmodule AFW.Settlement.State do
 
   defp ensure_table(table) do
     case :ets.whereis(table) do
-      :undefined -> :ets.new(table, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
-      _ -> table
+      :undefined ->
+        :ets.new(table, [
+          :named_table,
+          :public,
+          :set,
+          read_concurrency: true,
+          write_concurrency: true
+        ])
+
+      _ ->
+        table
     end
   end
 end

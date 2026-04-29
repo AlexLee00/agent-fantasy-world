@@ -99,7 +99,13 @@ defmodule AFW.Simulation.Metrics do
 
   defp maybe_flush(state) do
     if rem(state.total_ticks, @flush_every) == 0 or state.crash_count > 0 do
-      path = Application.get_env(:afw, :simulation_metrics_path, "../agents/logs/simulation_metrics.json")
+      path =
+        Application.get_env(
+          :afw,
+          :simulation_metrics_path,
+          "../agents/logs/simulation_metrics.json"
+        )
+
       resolved = Path.expand(path, File.cwd!())
       File.mkdir_p!(Path.dirname(resolved))
       File.write!(resolved, Jason.encode_to_iodata!(export(state), pretty: true))

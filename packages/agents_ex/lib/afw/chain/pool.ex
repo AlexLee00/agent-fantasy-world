@@ -34,6 +34,7 @@ defmodule AFW.Chain.Pool do
 
       {:error, _reason} = error ->
         record(url, 60_000)
+
         case rest do
           [] -> error
           _ -> do_request(rest, fun)
@@ -63,7 +64,13 @@ defmodule AFW.Chain.Pool do
   defp ensure_table! do
     case :ets.whereis(@table) do
       :undefined ->
-        :ets.new(@table, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
+        :ets.new(@table, [
+          :named_table,
+          :public,
+          :set,
+          read_concurrency: true,
+          write_concurrency: true
+        ])
 
       _ ->
         @table

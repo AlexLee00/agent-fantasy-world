@@ -9,9 +9,18 @@ defmodule AFW.Simulation.Balance do
     economics = Economics.snapshot()
 
     []
-    |> maybe_add(death_rate(metrics) > 0.3, "Monster ATK should be lowered by 10% because death rate exceeded 30%.")
-    |> maybe_add(economics.wealth.gini > 0.5, "Combat reward floor should be raised because wealth inequality exceeded the target band.")
-    |> maybe_add(economics.soul.inflation_rate > 0.05, "SOUL burn rate should be increased because epoch inflation exceeded 5%.")
+    |> maybe_add(
+      death_rate(metrics) > 0.3,
+      "Monster ATK should be lowered by 10% because death rate exceeded 30%."
+    )
+    |> maybe_add(
+      economics.wealth.gini > 0.5,
+      "Combat reward floor should be raised because wealth inequality exceeded the target band."
+    )
+    |> maybe_add(
+      economics.soul.inflation_rate > 0.05,
+      "SOUL burn rate should be increased because epoch inflation exceeded 5%."
+    )
   end
 
   def summary do

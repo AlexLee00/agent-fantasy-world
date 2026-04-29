@@ -8,8 +8,18 @@ defmodule AFW.Contribution.GitHub do
 
     %{
       commits: fetch_count("https://api.github.com/repos/#{repo}/commits", headers),
-      prs_merged: fetch_count("https://api.github.com/repos/#{repo}/pulls?state=closed", headers, &merged_prs/1),
-      issues_closed: fetch_count("https://api.github.com/repos/#{repo}/issues?state=closed", headers, &closed_issues/1)
+      prs_merged:
+        fetch_count(
+          "https://api.github.com/repos/#{repo}/pulls?state=closed",
+          headers,
+          &merged_prs/1
+        ),
+      issues_closed:
+        fetch_count(
+          "https://api.github.com/repos/#{repo}/issues?state=closed",
+          headers,
+          &closed_issues/1
+        )
     }
   end
 

@@ -1,7 +1,7 @@
 defmodule AFW.Chain.Client do
   @moduledoc "Public AFW chain facade delegating reads to Reader and writes to Writer."
 
-  alias AFW.Chain.{Reader, Writer}
+  alias AFW.Chain.{Preflight, Reader, Writer}
 
   @tracked_contracts [
     :afw_token,
@@ -42,18 +42,29 @@ defmodule AFW.Chain.Client do
   def soul_metrics, do: Reader.soul_metrics()
   def tracked_contracts, do: @tracked_contracts
   def account_address, do: Writer.account_address()
+  def preflight, do: Preflight.run()
 
   def create_agent(class_id, personality), do: Writer.create_agent(class_id, personality)
   def resolve_combat(agent_id, monster_id), do: Writer.resolve_combat(agent_id, monster_id)
   def buy_from_npc(npc_id, item_id), do: Writer.buy_from_npc(npc_id, item_id)
-  def create_market_order(item_id, amount, price), do: Writer.create_market_order(item_id, amount, price)
+
+  def create_market_order(item_id, amount, price),
+    do: Writer.create_market_order(item_id, amount, price)
+
   def fill_market_order(order_id), do: Writer.fill_market_order(order_id)
+
   def update_agent_state(agent_id, stats, exp_gained, zone_id, status_id),
     do: Writer.update_agent_state(agent_id, stats, exp_gained, zone_id, status_id)
-  def distribute_node_rewards(addresses, amounts, epoch), do: Writer.distribute_node_rewards(addresses, amounts, epoch)
-  def distribute_bounty_rewards(addresses, amounts, epoch), do: Writer.distribute_bounty_rewards(addresses, amounts, epoch)
+
+  def distribute_node_rewards(addresses, amounts, epoch),
+    do: Writer.distribute_node_rewards(addresses, amounts, epoch)
+
+  def distribute_bounty_rewards(addresses, amounts, epoch),
+    do: Writer.distribute_bounty_rewards(addresses, amounts, epoch)
+
   def propose_governance_action(proposal_type, title, description, target, call_data),
     do: Writer.propose_governance_action(proposal_type, title, description, target, call_data)
+
   def trigger_event_treasury_check, do: Writer.trigger_event_treasury_check()
 
   def register_item_type(name, category, tier, min_stat, max_stat, tradeable) do
@@ -63,6 +74,9 @@ defmodule AFW.Chain.Client do
   def register_monster_type(attrs), do: Writer.register_monster_type(attrs)
   def spawn_monster(type_id, zone_id), do: Writer.spawn_monster(type_id, zone_id)
   def register_npc_type(name, role, zone_id), do: Writer.register_npc_type(name, role, zone_id)
-  def spawn_npc(type_id, zone_id, initial_soul), do: Writer.spawn_npc(type_id, zone_id, initial_soul)
+
+  def spawn_npc(type_id, zone_id, initial_soul),
+    do: Writer.spawn_npc(type_id, zone_id, initial_soul)
+
   def set_npc_price(npc_id, item_id, price), do: Writer.set_npc_price(npc_id, item_id, price)
 end

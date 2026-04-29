@@ -1,5 +1,6 @@
 defmodule AFWWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :afw
+
   @session_options [
     store: :cookie,
     key: "_afw_key",

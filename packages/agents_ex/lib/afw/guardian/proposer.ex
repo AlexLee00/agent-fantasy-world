@@ -11,7 +11,8 @@ defmodule AFW.Guardian.Proposer do
     %{
       proposal_type: 4,
       title: "Freeze suspicious wallet #{wallet}",
-      description: "Guardian detected suspicious activity and requests multisig review. Evidence: #{inspect(evidence)}",
+      description:
+        "Guardian detected suspicious activity and requests multisig review. Evidence: #{inspect(evidence)}",
       target_contract: Contracts.get(:governance_dao),
       call_data: freeze_call_data,
       wallet: wallet,

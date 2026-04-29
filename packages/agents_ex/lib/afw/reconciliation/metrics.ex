@@ -3,7 +3,9 @@ defmodule AFW.Reconciliation.Metrics do
   use GenServer
 
   def start_link(_opts) do
-    GenServer.start_link(__MODULE__, %{checks: 0, mismatches: 0, corrections: 0, last: nil}, name: __MODULE__)
+    GenServer.start_link(__MODULE__, %{checks: 0, mismatches: 0, corrections: 0, last: nil},
+      name: __MODULE__
+    )
   end
 
   @impl true

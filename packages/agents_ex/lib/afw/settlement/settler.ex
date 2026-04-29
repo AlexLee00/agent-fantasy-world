@@ -20,7 +20,13 @@ defmodule AFW.Settlement.Settler do
         State.release_lock(event.id, event.agent_id)
         State.confirm_event(event)
         Metrics.record_confirmed(event)
-        Phoenix.PubSub.broadcast(AFW.PubSub, "agents", {:settlement_confirmed, event.agent_id, event.id, payload})
+
+        Phoenix.PubSub.broadcast(
+          AFW.PubSub,
+          "agents",
+          {:settlement_confirmed, event.agent_id, event.id, payload}
+        )
+
         {:ok, payload}
 
       {:error, reason} ->
@@ -31,7 +37,13 @@ defmodule AFW.Settlement.Settler do
         State.release_lock(event.id, event.agent_id)
         State.rollback_event(event)
         Metrics.record_discard(event, reason)
-        Phoenix.PubSub.broadcast(AFW.PubSub, "agents", {:settlement_failed, event.agent_id, event.id, reason})
+
+        Phoenix.PubSub.broadcast(
+          AFW.PubSub,
+          "agents",
+          {:settlement_failed, event.agent_id, event.id, reason}
+        )
+
         {:ok, %{status: :discarded, reason: reason}}
     end
   end
@@ -45,7 +57,13 @@ defmodule AFW.Settlement.Settler do
   defp execute(%{type: :npc_purchase, data: data}) do
     with :ok <- validate_npc_purchase(data.agent_id, data.npc_id, data.item_id),
          {:ok, _purchase} <- Writer.buy_from_npc(data.npc_id, data.item_id) do
-      Writer.update_agent_state(data.agent_id, data.heal_stats, Map.get(data, :exp_gained, 0), data.zone_id, data.status_id)
+      Writer.update_agent_state(
+        data.agent_id,
+        data.heal_stats,
+        Map.get(data, :exp_gained, 0),
+        data.zone_id,
+        data.status_id
+      )
     end
   end
 
@@ -91,12 +109,18 @@ defmodule AFW.Settlement.Settler do
     with {:ok, agent} <- validate_agent_alive(data.agent_id),
          :ok <- ensure_agent_ready_for_combat(agent, data.agent_id),
          {:ok, _soul} <- validate_positive_soul(agent, data.agent_id),
-         {:ok, monster_id} <- validate_or_retarget_monster(data.zone_id, data.monster_id, attempt),
+         {:ok, monster_id, monster} <-
+           validate_or_retarget_monster(data.zone_id, data.monster_id, attempt),
+         :ok <- validate_shared_wallet_safe_win(agent, monster),
          {:ok, payload} <- Writer.resolve_combat(data.agent_id, monster_id) do
       {:ok, payload}
     else
       {:error, reason} ->
-        handle_combat_error(event_with_monster(data.agent_id, data, monster_id_or_original(data.monster_id)), reason, attempt)
+        handle_combat_error(
+          event_with_monster(data.agent_id, data, monster_id_or_original(data.monster_id)),
+          reason,
+          attempt
+        )
 
       other ->
         other
@@ -124,14 +148,18 @@ defmodule AFW.Settlement.Settler do
   defp validate_market_sell(agent_id, item_id, amount) do
     agent = Client.get_agent_fresh_state(agent_id)
     items = Client.get_agent_items(agent["observer"])
+
     active_same_item? =
       Client.get_active_orders()
       |> Enum.any?(fn order ->
-        String.downcase(order.seller || "") == String.downcase(agent["observer"] || "") and order.item_id == item_id
+        String.downcase(order.seller || "") == String.downcase(agent["observer"] || "") and
+          order.item_id == item_id
       end)
 
     cond do
-      active_same_item? -> {:discard, "Marketplace sell precheck failed: stale_snapshot"}
+      active_same_item? ->
+        {:discard, "Marketplace sell precheck failed: stale_snapshot"}
+
       is_nil(Enum.find(items, &(&1.item_id == item_id and &1.balance >= amount))) ->
         {:discard, "Marketplace sell precheck failed: item unavailable"}
 
@@ -147,9 +175,14 @@ defmodule AFW.Settlement.Settler do
     soul = Client.get_soul_balance(agent["observer"])
 
     case Enum.find(Client.get_active_orders(), &(&1.order_id == order_id)) do
-      nil -> {:discard, "Marketplace buy precheck failed: order inactive"}
-      order when soul < order.price_in_soul -> {:discard, "Marketplace buy precheck failed: insufficient SOUL"}
-      _ -> :ok
+      nil ->
+        {:discard, "Marketplace buy precheck failed: order inactive"}
+
+      order when soul < order.price_in_soul ->
+        {:discard, "Marketplace buy precheck failed: insufficient SOUL"}
+
+      _ ->
+        :ok
     end
   rescue
     error -> {:discard, Exception.message(error)}
@@ -191,7 +224,10 @@ defmodule AFW.Settlement.Settler do
           {:discard, "Marketplace buy precheck failed: order_not_active"}
 
         next_order ->
-          Logger.info("[settle] RETARGET marketplace_trade: order=#{data.order_id} -> #{next_order.order_id}")
+          Logger.info(
+            "[settle] RETARGET marketplace_trade: order=#{data.order_id} -> #{next_order.order_id}"
+          )
+
           Metrics.record_retargeted(:marketplace_trade, "order_not_active")
           settle_market_buy(put_in(event.data.order_id, next_order.order_id), attempt + 1)
       end
@@ -227,8 +263,11 @@ defmodule AFW.Settlement.Settler do
              agent["zoneId"],
              1
            ) do
-        {:ok, _} -> :ok
-        {:error, reason} -> {:discard, "Combat precheck failed: stale_snapshot #{inspect(reason)}"}
+        {:ok, _} ->
+          :ok
+
+        {:error, reason} ->
+          {:discard, "Combat precheck failed: stale_snapshot #{inspect(reason)}"}
       end
     end
   rescue
@@ -237,21 +276,27 @@ defmodule AFW.Settlement.Settler do
 
   defp validate_positive_soul(agent, agent_id) do
     soul = Client.get_soul_balance(agent["observer"])
-    if soul >= 0, do: {:ok, soul}, else: {:discard, "Combat precheck failed: insufficient_soul agent=#{agent_id}"}
+
+    if soul >= 0,
+      do: {:ok, soul},
+      else: {:discard, "Combat precheck failed: insufficient_soul agent=#{agent_id}"}
   end
 
   defp validate_or_retarget_monster(zone_id, monster_id, attempt) do
     case Reader.call_contract(:monster_registry, "getMonster", [monster_id]) do
       [{_, hp, _, _, _, _, alive}] when alive and hp > 0 ->
         Logger.info("[settle] pre-validate: monster##{monster_id} alive=true hp=#{hp}")
-        {:ok, monster_id}
+        {:ok, monster_id, Client.get_monster_fresh(monster_id)}
 
       _ when attempt < 1 ->
         case find_alive_monster(zone_id, monster_id) do
           {:ok, new_monster_id} ->
-            Logger.info("[settle] RETARGET combat_result: monster=#{monster_id} -> #{new_monster_id}")
+            Logger.info(
+              "[settle] RETARGET combat_result: monster=#{monster_id} -> #{new_monster_id}"
+            )
+
             Metrics.record_retargeted(:combat_result, "monster_dead")
-            {:ok, new_monster_id}
+            {:ok, new_monster_id, Client.get_monster_fresh(new_monster_id)}
 
           :none ->
             {:discard, "Combat precheck failed: no_alive_monsters"}
@@ -263,18 +308,60 @@ defmodule AFW.Settlement.Settler do
   end
 
   defp find_alive_monster(zone_id, exclude_monster_id) do
-    case Client.get_alive_monsters_in_zone(zone_id) |> Enum.reject(&(&1.monster_id == exclude_monster_id)) |> List.first() do
+    case Client.get_alive_monsters_in_zone(zone_id)
+         |> Enum.reject(&(&1.monster_id == exclude_monster_id))
+         |> List.first() do
       nil -> :none
       monster -> {:ok, monster.monster_id}
     end
   end
 
+  defp validate_shared_wallet_safe_win(agent, monster) do
+    if safe_win?(agent, monster) do
+      :ok
+    else
+      {:discard, "Combat precheck failed: unsafe shared-wallet combat"}
+    end
+  end
+
+  defp safe_win?(agent, monster) do
+    stats = agent["stats"] || %{}
+    hp = stats["hp"] || 0
+    attack = stats["attack"] || 0
+    defense = stats["defense"] || 0
+    class_id = agent["classId"] || 0
+
+    agent_damage = scaled_damage_floor(attack, monster.def, class_id, 8_000)
+    monster_damage = scaled_damage_floor(monster.atk, defense, 0, 12_000)
+    rounds = div(monster.hp + agent_damage - 1, agent_damage)
+
+    hp > rounds * monster_damage
+  end
+
+  defp scaled_damage_floor(attack_value, defense_value, class_id, random_factor_bps) do
+    damage_base = div(attack_value * 100, 100 + defense_value)
+    damage = div(damage_base * class_modifier_bps(class_id), 10_000)
+    damage = div(damage * random_factor_bps, 10_000)
+    max(damage, 1)
+  end
+
+  defp class_modifier_bps(1), do: 10_000
+  defp class_modifier_bps(2), do: 13_000
+  defp class_modifier_bps(3), do: 11_000
+  defp class_modifier_bps(4), do: 6_000
+  defp class_modifier_bps(5), do: 8_000
+  defp class_modifier_bps(_), do: 10_000
+
   defp log_discard(event, reason) do
-    Logger.warning("[settle] DISCARD #{event.type}: reason=#{discard_category(reason)} details=#{inspect(reason)} agent=#{event.agent_id}")
+    Logger.warning(
+      "[settle] DISCARD #{event.type}: reason=#{discard_category(reason)} details=#{inspect(reason)} agent=#{event.agent_id}"
+    )
   end
 
   defp log_attempt(event) do
-    Logger.info("[settle] #{event.type} attempt: agent=#{event.agent_id} data=#{inspect(event.data)}")
+    Logger.info(
+      "[settle] #{event.type} attempt: agent=#{event.agent_id} data=#{inspect(event.data)}"
+    )
   end
 
   defp precheck_combat(%{data: data}) do
@@ -288,7 +375,10 @@ defmodule AFW.Settlement.Settler do
       {agent, monster} ->
         hp = get_in(agent, ["stats", "hp"]) || 0
         atk = get_in(agent, ["stats", "attack"]) || 0
-        Logger.info("[settle] precheck: agent status=#{agent["statusId"]} hp=#{hp} atk=#{atk}, monster alive=#{monster.alive} hp=#{monster.hp}")
+
+        Logger.info(
+          "[settle] precheck: agent status=#{agent["statusId"]} hp=#{hp} atk=#{atk}, monster alive=#{monster.alive} hp=#{monster.hp}"
+        )
 
         cond do
           hp <= 0 -> {:discard, :agent_zero_hp}
@@ -325,6 +415,7 @@ defmodule AFW.Settlement.Settler do
   defp handle_combat_error(_event, reason, _attempt), do: {:discard, reason}
 
   defp blacklist_order(nil), do: :ok
+
   defp blacklist_order(order_id) do
     ensure_failed_orders_table!()
     :ets.insert(@failed_orders_table, {order_id, System.monotonic_time(:millisecond)})
@@ -334,7 +425,13 @@ defmodule AFW.Settlement.Settler do
   defp ensure_failed_orders_table! do
     case :ets.whereis(@failed_orders_table) do
       :undefined ->
-        :ets.new(@failed_orders_table, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
+        :ets.new(@failed_orders_table, [
+          :named_table,
+          :public,
+          :set,
+          read_concurrency: true,
+          write_concurrency: true
+        ])
 
       _ ->
         @failed_orders_table
@@ -351,13 +448,26 @@ defmodule AFW.Settlement.Settler do
     text = to_string(reason)
 
     cond do
-      String.contains?(text, "monster_dead") -> "monster_dead"
-      String.contains?(text, "no_alive_monsters") -> "no_alive_monsters"
-      String.contains?(text, "agent_not_alive") -> "agent_not_alive"
-      String.contains?(text, "insufficient SOUL") or String.contains?(text, "insufficient_soul") -> "insufficient_soul"
-      String.contains?(text, "order inactive") or String.contains?(text, "order_not_active") -> "order_not_active"
-      String.contains?(text, "stale_snapshot") -> "stale_snapshot"
-      true -> "other"
+      String.contains?(text, "monster_dead") ->
+        "monster_dead"
+
+      String.contains?(text, "no_alive_monsters") ->
+        "no_alive_monsters"
+
+      String.contains?(text, "agent_not_alive") ->
+        "agent_not_alive"
+
+      String.contains?(text, "insufficient SOUL") or String.contains?(text, "insufficient_soul") ->
+        "insufficient_soul"
+
+      String.contains?(text, "order inactive") or String.contains?(text, "order_not_active") ->
+        "order_not_active"
+
+      String.contains?(text, "stale_snapshot") ->
+        "stale_snapshot"
+
+      true ->
+        "other"
     end
   end
 end

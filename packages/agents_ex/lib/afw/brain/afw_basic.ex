@@ -36,10 +36,17 @@ defmodule AFW.Brain.AFWBasic do
   def decide(%{analysis_type: :guardian, events: events, economics: economics}) do
     severity =
       cond do
-        Enum.any?(events, &(&1.type in [:unauthorized_role_grant, :unauthorized_mint])) -> "critical"
-        Enum.any?(events, &(&1.type in [:duplicate_reward, :wash_trade])) -> "high"
-        economics.wealth.gini > 0.5 -> "medium"
-        true -> "low"
+        Enum.any?(events, &(&1.type in [:unauthorized_role_grant, :unauthorized_mint])) ->
+          "critical"
+
+        Enum.any?(events, &(&1.type in [:duplicate_reward, :wash_trade])) ->
+          "high"
+
+        economics.wealth.gini > 0.5 ->
+          "medium"
+
+        true ->
+          "low"
       end
 
     anomalies =
@@ -55,7 +62,8 @@ defmodule AFW.Brain.AFWBasic do
      %{
        "anomalies" => anomalies,
        "severity" => severity,
-       "proposed_action" => if(severity in ["high", "critical"], do: "PROPOSE_FREEZE", else: "OBSERVE"),
+       "proposed_action" =>
+         if(severity in ["high", "critical"], do: "PROPOSE_FREEZE", else: "OBSERVE"),
        "evidence" => %{
          "events" => length(events),
          "gini" => economics.wealth.gini,
@@ -66,7 +74,13 @@ defmodule AFW.Brain.AFWBasic do
 
   defp heuristic_decision(%{type: :survival}), do: %{"action" => "REST", "confidence" => 0.95}
   defp heuristic_decision(%{type: :trade}), do: %{"action" => "TRADE", "confidence" => 0.75}
-  defp heuristic_decision(%{type: :npc, target: target}), do: %{"action" => "TALK", "target" => target, "confidence" => 0.7}
-  defp heuristic_decision(%{type: :monster, target: target}), do: %{"action" => "FIGHT", "target" => target, "confidence" => 0.6}
-  defp heuristic_decision(%{target: target}), do: %{"action" => "EXPLORE", "target" => target, "confidence" => 0.6}
+
+  defp heuristic_decision(%{type: :npc, target: target}),
+    do: %{"action" => "TALK", "target" => target, "confidence" => 0.7}
+
+  defp heuristic_decision(%{type: :monster, target: target}),
+    do: %{"action" => "FIGHT", "target" => target, "confidence" => 0.6}
+
+  defp heuristic_decision(%{target: target}),
+    do: %{"action" => "EXPLORE", "target" => target, "confidence" => 0.6}
 end

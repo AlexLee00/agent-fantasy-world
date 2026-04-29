@@ -3,8 +3,12 @@ defmodule AFW.Guardian.Analyzer do
 
   def analyze(events, metrics, ai_analysis \\ %{}) do
     anomalies = heuristic_anomalies(events) ++ normalize_ai_anomalies(ai_analysis)
-    severity = ai_analysis["severity"] || ai_analysis[:severity] || heuristic_severity(anomalies, metrics)
-    proposed_action = ai_analysis["proposed_action"] || ai_analysis[:proposed_action] || proposed_action(severity)
+
+    severity =
+      ai_analysis["severity"] || ai_analysis[:severity] || heuristic_severity(anomalies, metrics)
+
+    proposed_action =
+      ai_analysis["proposed_action"] || ai_analysis[:proposed_action] || proposed_action(severity)
 
     %{
       timestamp: DateTime.utc_now(),
@@ -12,7 +16,9 @@ defmodule AFW.Guardian.Analyzer do
         totalSOULMinted: metrics[:total_minted] || get_in(metrics, [:soul, :total_minted]) || 0,
         totalSOULBurned: metrics[:total_burned] || get_in(metrics, [:soul, :total_burned]) || 0,
         circulatingSOUL: metrics[:total_supply] || get_in(metrics, [:soul, :circulating]) || 0,
-        inflationRate: metrics[:inflation_rate] || get_in(metrics, [:soul, :inflation_rate]) || inflation(metrics)
+        inflationRate:
+          metrics[:inflation_rate] || get_in(metrics, [:soul, :inflation_rate]) ||
+            inflation(metrics)
       },
       agents: %{
         totalActive: metrics[:agent_count] || 0,
@@ -26,7 +32,8 @@ defmodule AFW.Guardian.Analyzer do
       },
       treasury: %{
         balance: metrics[:treasury_balance] || get_in(metrics, [:treasury, :balance]) || 0,
-        nextEvent: metrics[:next_event] || get_in(metrics, [:treasury, :next_threshold]) || "MINI at 1000",
+        nextEvent:
+          metrics[:next_event] || get_in(metrics, [:treasury, :next_threshold]) || "MINI at 1000",
         remainingToNext: get_in(metrics, [:treasury, :remaining_to_next]) || 0
       },
       anomalies: anomalies,
@@ -38,7 +45,9 @@ defmodule AFW.Guardian.Analyzer do
 
   defp inflation(metrics) do
     minted = max(metrics[:total_minted] || get_in(metrics, [:soul, :total_minted]) || 0, 1)
-    ((metrics[:total_minted] || get_in(metrics, [:soul, :total_minted]) || 0) - (metrics[:total_burned] || get_in(metrics, [:soul, :total_burned]) || 0)) / minted
+
+    ((metrics[:total_minted] || get_in(metrics, [:soul, :total_minted]) || 0) -
+       (metrics[:total_burned] || get_in(metrics, [:soul, :total_burned]) || 0)) / minted
   end
 
   defp heuristic_anomalies(events) do
@@ -62,10 +71,17 @@ defmodule AFW.Guardian.Analyzer do
 
   defp heuristic_severity(anomalies, metrics) do
     cond do
-      Enum.any?(anomalies, &((Map.get(&1, :severity) || Map.get(&1, "severity")) in ["critical"])) -> "critical"
-      Enum.any?(anomalies, &((Map.get(&1, :severity) || Map.get(&1, "severity")) in ["high"])) -> "high"
-      (metrics[:wealth_gini] || get_in(metrics, [:wealth, :gini]) || 0) > 0.5 -> "medium"
-      true -> "low"
+      Enum.any?(anomalies, &((Map.get(&1, :severity) || Map.get(&1, "severity")) in ["critical"])) ->
+        "critical"
+
+      Enum.any?(anomalies, &((Map.get(&1, :severity) || Map.get(&1, "severity")) in ["high"])) ->
+        "high"
+
+      (metrics[:wealth_gini] || get_in(metrics, [:wealth, :gini]) || 0) > 0.5 ->
+        "medium"
+
+      true ->
+        "low"
     end
   end
 

@@ -47,7 +47,11 @@ defmodule AFW.Agent.Server do
     }
 
     schedule_tick(state.tick_interval)
-    Logger.info("Started AFW agent #{state.label || "Agent"} class=#{state.class_id} on-chain agentId=#{inspect(state.agent_id)}")
+
+    Logger.info(
+      "Started AFW agent #{state.label || "Agent"} class=#{state.class_id} on-chain agentId=#{inspect(state.agent_id)}"
+    )
+
     {:ok, state}
   end
 

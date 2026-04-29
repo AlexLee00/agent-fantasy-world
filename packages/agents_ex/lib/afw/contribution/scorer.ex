@@ -13,7 +13,9 @@ defmodule AFW.Contribution.Scorer do
     [
       %{
         address: "github:repo",
-        score: (github[:prs_merged] || 0) * 100 + (github[:issues_closed] || 0) * 50 + (github[:commits] || 0) * 10
+        score:
+          (github[:prs_merged] || 0) * 100 + (github[:issues_closed] || 0) * 50 +
+            (github[:commits] || 0) * 10
       }
     ]
   end
