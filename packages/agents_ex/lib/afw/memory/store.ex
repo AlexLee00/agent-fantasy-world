@@ -1,13 +1,14 @@
 defmodule AFW.Memory.Store do
   @moduledoc """
-  Agent memory stream backed by ETS with optional JSONL persistence.
+  Agent memory stream backed by ETS with optional JSONL and SQLite persistence.
 
-  This is the Phase 1 memory baseline: fast local recall for prompts and
-  inspect views, without introducing a database dependency before the visual
-  prototype stabilizes.
+  ETS remains the hot path for agent ticks. SQLite is the durable replay layer
+  and is loaded at startup when configured.
   """
 
   use GenServer
+
+  alias AFW.Memory.{Embedding, SQLite}
 
   @table :afw_memory_store
   @max_per_agent 200
@@ -19,20 +20,25 @@ defmodule AFW.Memory.Store do
   @impl true
   def init(opts) do
     ensure_table!()
-    path = Keyword.get(opts, :path, Application.get_env(:afw, :memory_log_path))
-    prepare_path(path)
-    {:ok, %{path: path}}
+    jsonl_path = Keyword.get(opts, :path, Application.get_env(:afw, :memory_log_path))
+    db_path = Keyword.get(opts, :db_path, Application.get_env(:afw, :memory_db_path))
+    prepare_path(jsonl_path)
+    SQLite.init(db_path)
+    load_persistent(db_path)
+    {:ok, %{jsonl_path: jsonl_path, db_path: db_path}}
   end
 
   def record(agent_id, type, content, metadata \\ %{}) do
     ensure_table!()
+    content = to_string(content || "")
 
     memory = %{
-      id: System.unique_integer([:positive, :monotonic]),
+      id: memory_id(),
       agent_id: agent_id,
       type: normalize_type(type),
-      content: to_string(content || ""),
+      content: content,
       metadata: metadata || %{},
+      embedding: Embedding.embed(content),
       created_at: DateTime.utc_now() |> DateTime.to_iso8601()
     }
 
@@ -56,14 +62,19 @@ defmodule AFW.Memory.Store do
   def relevant(agent_id, query, limit \\ 5) do
     ensure_table!()
     tokens = tokenize(query)
+    Process.put({__MODULE__, :query_embedding}, Embedding.embed(query))
 
-    agent_id
-    |> recent(@max_per_agent)
-    |> Enum.map(fn memory -> {memory_score(memory, tokens), memory} end)
-    |> Enum.filter(fn {score, _memory} -> score > 0 end)
-    |> Enum.sort_by(fn {score, memory} -> {score, memory.id} end, :desc)
-    |> Enum.map(fn {_score, memory} -> memory end)
-    |> take_or_recent(agent_id, limit)
+    try do
+      agent_id
+      |> recent(@max_per_agent)
+      |> Enum.map(fn memory -> {memory_score(memory, tokens), memory} end)
+      |> Enum.filter(fn {score, _memory} -> score > 0 end)
+      |> Enum.sort_by(fn {score, memory} -> {score, memory.id} end, :desc)
+      |> Enum.map(fn {_score, memory} -> memory end)
+      |> take_or_recent(agent_id, limit)
+    after
+      Process.delete({__MODULE__, :query_embedding})
+    end
   end
 
   def clear(agent_id) do
@@ -82,17 +93,29 @@ defmodule AFW.Memory.Store do
   def clear_all do
     ensure_table!()
     :ets.delete_all_objects(@table)
+
+    if Process.whereis(__MODULE__) do
+      GenServer.call(__MODULE__, :clear_persistent)
+    end
+
     :ok
   end
 
   @impl true
-  def handle_cast({:persist, memory}, %{path: path} = state) do
+  def handle_cast({:persist, memory}, %{jsonl_path: path, db_path: db_path} = state) do
     if usable_path?(path) do
       line = Jason.encode!(memory) <> "\n"
       File.write(path, line, [:append])
     end
 
+    SQLite.insert(db_path, memory)
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_call(:clear_persistent, _from, %{db_path: db_path} = state) do
+    SQLite.clear_all(db_path)
+    {:reply, :ok, state}
   end
 
   defp persist(memory) do
@@ -131,7 +154,16 @@ defmodule AFW.Memory.Store do
         _ -> 0
       end
 
-    overlap + type_bonus
+    semantic_bonus =
+      case Process.get({__MODULE__, :query_embedding}) do
+        query_embedding when is_list(query_embedding) ->
+          Embedding.cosine(query_embedding, memory[:embedding] || [])
+
+        _ ->
+          0.0
+      end
+
+    overlap + type_bonus + semantic_bonus
   end
 
   defp tokenize(value) do
@@ -161,6 +193,19 @@ defmodule AFW.Memory.Store do
       _ ->
         @table
     end
+  end
+
+  defp load_persistent(db_path) do
+    db_path
+    |> SQLite.load_recent(@max_per_agent * 50)
+    |> Enum.each(fn memory ->
+      :ets.insert(@table, {{memory.agent_id, memory.id}, memory})
+    end)
+  end
+
+  defp memory_id do
+    System.system_time(:microsecond) * 1_000 +
+      rem(System.unique_integer([:positive, :monotonic]), 1_000)
   end
 
   defp prepare_path(path) do

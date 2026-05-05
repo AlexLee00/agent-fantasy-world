@@ -55,6 +55,10 @@ config :afw,
   simulation_metrics_path:
     System.get_env("SIMULATION_METRICS_PATH", "../agents/logs/simulation_metrics.json"),
   memory_log_path: System.get_env("MEMORY_LOG_PATH", "../agents/logs/memory_stream.jsonl"),
+  memory_db_path: System.get_env("MEMORY_DB_PATH", "../agents/logs/memory.sqlite3"),
+  memory_embedding_provider: System.get_env("MEMORY_EMBEDDING_PROVIDER", "local"),
+  ollama_host: System.get_env("OLLAMA_HOST", "http://localhost:11434"),
+  memory_embedding_model: System.get_env("MEMORY_EMBEDDING_MODEL", "embeddinggemma"),
   world_event_cooldown_ms:
     String.to_integer(System.get_env("WORLD_EVENT_COOLDOWN_MS", "1800000")),
   simulation_ticks: String.to_integer(System.get_env("SIMULATION_TICKS", "50")),

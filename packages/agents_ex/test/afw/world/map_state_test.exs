@@ -28,4 +28,19 @@ defmodule AFW.World.MapStateTest do
     assert ["Lumenveil", "Graymarch", "Embervault", "Voidreach"] =
              Enum.map(MapState.zones(), & &1.name)
   end
+
+  test "ships a Tiled overview map matching the runtime zones" do
+    path =
+      Path.expand(
+        "../../../priv/static/assets/maps/aethermoor_overview.tmj",
+        __DIR__
+      )
+
+    map = path |> File.read!() |> Jason.decode!()
+    zone_layer = Enum.find(map["layers"], &(&1["name"] == "zones"))
+
+    assert map["type"] == "map"
+    assert length(zone_layer["objects"]) == 4
+    assert Enum.map(zone_layer["objects"], & &1["name"]) == Enum.map(MapState.zones(), & &1.name)
+  end
 end

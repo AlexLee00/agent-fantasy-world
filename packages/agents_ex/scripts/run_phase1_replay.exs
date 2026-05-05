@@ -37,6 +37,8 @@ defmodule AFW.Phase1.Replay do
       checkedAt: DateTime.utc_now(),
       scope: "Phase 1 memory and Phaser LiveView map replay",
       viewer: "Phaser 4 LiveView hook",
+      memoryStore: "ETS hot path + SQLite durable replay + local/Ollama embedding adapter",
+      mapSource: "/assets/maps/aethermoor_overview.tmj",
       ticks: ticks,
       zones: MapState.zones(),
       memory:
@@ -97,8 +99,10 @@ defmodule AFW.Phase1.Replay do
 
     - Treasury-backed world events now use an off-chain lifecycle cooldown, so a high EventTreasury balance does not dominate every agent tick.
     - Agent memory is available through an ETS-backed memory stream with optional JSONL persistence.
+    - Agent memory is durable through SQLite and can use Ollama `/api/embed` when `MEMORY_EMBEDDING_PROVIDER=ollama`.
     - Prompt construction includes relevant memories before the decision section.
     - Phoenix LiveView renders a Phaser 4 Aethermoor map with agent position, action, class color, HP ring, and click-to-inspect navigation.
+    - The Phaser viewer loads the first Tiled JSON map from `/assets/maps/aethermoor_overview.tmj`.
     - Agent inspect pages show recent runtime memories alongside the on-chain snapshot.
     - A deterministic replay script validates map and memory output without requiring Base Sepolia writes.
     - The Phoenix endpoint serves LiveView client JS from local Mix dependencies and loads Phaser 4 from the official CDN package path.
@@ -111,6 +115,8 @@ defmodule AFW.Phase1.Replay do
     - Agents rendered per tick: #{length(List.first(payload.ticks).agents)}
     - Internal artifact: #{Path.relative_to(artifact_path, root)}
     - Viewer standard: #{payload.viewer}
+    - Memory store: #{payload.memoryStore}
+    - Map source: #{payload.mapSource}
 
     ## Command
 
@@ -121,9 +127,9 @@ defmodule AFW.Phase1.Replay do
 
     ## Remaining Phase 1 Work
 
-    - Add durable SQLite/embedding-backed memory retrieval once visual behavior is stable.
-    - Add click-to-inspect monologue and richer social memory surfaces.
-    - Add Tiled-authored maps and sprite assets; current Phase 1 viewer uses generated zone geometry as the first integration slice.
+    - Add sprite assets and animated action states.
+    - Replace deterministic local embeddings with a verified local Ollama model in developer setup.
+    - Add richer social memory surfaces and multi-agent dialogue transcripts.
     """
 
     File.write!(path, body)

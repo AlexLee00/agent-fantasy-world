@@ -1,0 +1,66 @@
+{
+  "type": "map",
+  "tiledversion": "1.11.2",
+  "version": "1.10",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "width": 30,
+  "height": 18,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "infinite": false,
+  "nextlayerid": 2,
+  "nextobjectid": 5,
+  "layers": [
+    {
+      "id": 1,
+      "name": "zones",
+      "type": "objectgroup",
+      "visible": true,
+      "opacity": 1,
+      "draworder": "topdown",
+      "objects": [
+        {
+          "id": 1,
+          "name": "Lumenveil",
+          "type": "SAFE",
+          "x": 40,
+          "y": 40,
+          "width": 260,
+          "height": 170,
+          "properties": [{"name": "zoneId", "type": "int", "value": 1}]
+        },
+        {
+          "id": 2,
+          "name": "Graymarch",
+          "type": "MEDIUM",
+          "x": 340,
+          "y": 40,
+          "width": 260,
+          "height": 170,
+          "properties": [{"name": "zoneId", "type": "int", "value": 2}]
+        },
+        {
+          "id": 3,
+          "name": "Embervault",
+          "type": "DANGER",
+          "x": 40,
+          "y": 250,
+          "width": 260,
+          "height": 170,
+          "properties": [{"name": "zoneId", "type": "int", "value": 3}]
+        },
+        {
+          "id": 4,
+          "name": "Voidreach",
+          "type": "EXTREME",
+          "x": 340,
+          "y": 250,
+          "width": 260,
+          "height": 170,
+          "properties": [{"name": "zoneId", "type": "int", "value": 4}]
+        }
+      ]
+    }
+  ]
+}

@@ -62,6 +62,7 @@
 
     create() {
       this.cameras.main.setBackgroundColor("#16120d");
+      this.mapZones = zonesFromTiled(this.cache.json.get("aethermoor-overview")) || this.state.zones;
       this.zoneLayer = this.add.container(0, 0);
       this.agentLayer = this.add.container(0, 0);
       this.hudText = this.add.text(24, 18, "", {
@@ -72,6 +73,10 @@
 
       this.renderZones();
       this.applyState(this.state);
+    }
+
+    preload() {
+      this.load.json("aethermoor-overview", "/assets/maps/aethermoor_overview.tmj");
     }
 
     applyState(nextState) {
@@ -86,7 +91,7 @@
     renderZones() {
       this.zoneLayer.removeAll(true);
 
-      for (const zone of this.state.zones) {
+      for (const zone of this.mapZones || this.state.zones) {
         const fill = zoneFill(zone.danger);
         const rect = this.add.rectangle(zone.x, zone.y, zone.width, zone.height, fill, 0.92);
         rect.setOrigin(0, 0);
@@ -198,6 +203,26 @@
     } catch (_error) {
       return fallback;
     }
+  }
+
+  function zonesFromTiled(map) {
+    const zoneLayer = map?.layers?.find((layer) => layer.name === "zones" && Array.isArray(layer.objects));
+    if (!zoneLayer) return null;
+
+    return zoneLayer.objects.map((object) => ({
+      id: tiledProperty(object, "zoneId") || object.id,
+      name: object.name,
+      danger: object.type,
+      x: object.x,
+      y: object.y,
+      width: object.width,
+      height: object.height
+    }));
+  }
+
+  function tiledProperty(object, name) {
+    const property = object.properties?.find((entry) => entry.name === name);
+    return property?.value;
   }
 
   function renderFallback(el, message) {

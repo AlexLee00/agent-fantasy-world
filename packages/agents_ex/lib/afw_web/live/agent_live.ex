@@ -3,12 +3,14 @@ defmodule AFWWeb.AgentLive do
 
   def mount(%{"id" => id}, _session, socket) do
     agent_id = String.to_integer(id)
+    agent = AFW.Chain.Client.get_agent(agent_id)
 
     {:ok,
      assign(socket,
        agent_id: agent_id,
-       agent: AFW.Chain.Client.get_agent(agent_id),
-       memories: AFW.Memory.Store.recent(agent_id, 20)
+       agent: agent,
+       memories: AFW.Memory.Store.recent(agent_id, 20),
+       monologue: AFW.Memory.Monologue.for_agent(agent_id, agent)
      )}
   end
 
@@ -16,6 +18,10 @@ defmodule AFWWeb.AgentLive do
     ~H"""
     <section>
       <h1>Agent #<%= @agent_id %></h1>
+      <h2>Monologue</h2>
+      <div style="padding:14px;margin-bottom:14px;border-radius:14px;background:#f5f8ff;border:1px solid #d8def8;font-size:18px;line-height:1.5;">
+        <%= @monologue %>
+      </div>
       <h2>Recent Memory</h2>
       <div :if={@memories == []}>No memories recorded in this runtime session.</div>
       <div :for={memory <- @memories} style="padding:10px;margin-bottom:8px;border-radius:12px;background:#fffaf1;border:1px solid #ddd;">
