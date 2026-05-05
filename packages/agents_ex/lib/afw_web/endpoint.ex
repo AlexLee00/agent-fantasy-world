@@ -13,6 +13,20 @@ defmodule AFWWeb.Endpoint do
   )
 
   plug(Plug.Static,
+    at: "/deps/phoenix",
+    from: {:phoenix, "priv/static"},
+    gzip: false,
+    only: ~w(phoenix.min.js)
+  )
+
+  plug(Plug.Static,
+    at: "/deps/phoenix_live_view",
+    from: {:phoenix_live_view, "priv/static"},
+    gzip: false,
+    only: ~w(phoenix_live_view.min.js)
+  )
+
+  plug(Plug.Static,
     at: "/",
     from: :afw,
     gzip: false,

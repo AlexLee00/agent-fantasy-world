@@ -82,29 +82,21 @@ defmodule AFWWeb.DashboardLive do
 
       <h2>Aethermoor Map</h2>
       <div style="padding:14px;border-radius:18px;background:#f8f3e8;border:1px solid #dfd2ba;margin-bottom:18px;">
-        <svg viewBox="0 0 640 460" role="img" aria-label="Aethermoor live map" style="width:100%;max-width:900px;height:auto;display:block;">
-          <rect x="0" y="0" width="640" height="460" rx="24" fill="#efe2cb" />
-          <g :for={zone <- @zones}>
-            <rect
-              x={zone.x}
-              y={zone.y}
-              width={zone.width}
-              height={zone.height}
-              rx="18"
-              fill={zone_fill(zone.danger)}
-              stroke="#6d5b45"
-              stroke-width="2"
-            />
-            <text x={zone.x + 16} y={zone.y + 28} fill="#2b241b" font-size="18" font-weight="700"><%= zone.name %></text>
-            <text x={zone.x + 16} y={zone.y + 50} fill="#6b5a46" font-size="12"><%= zone.danger %></text>
-          </g>
-          <g :for={agent <- Enum.map(@agents, &map_agent/1)}>
-            <circle cx={agent.x} cy={agent.y} r="13" fill={agent_fill(agent.class_id)} stroke="#1f1b16" stroke-width="2" />
-            <circle cx={agent.x} cy={agent.y} r="18" fill="none" stroke={hp_stroke(agent)} stroke-width="3" stroke-dasharray={"#{hp_dash(agent)} 100"} />
-            <text x={agent.x + 18} y={agent.y - 6} fill="#1f1b16" font-size="12" font-weight="700"><%= agent.label %> #<%= agent.agent_id %></text>
-            <text x={agent.x + 18} y={agent.y + 10} fill="#4e4131" font-size="11"><%= agent.action %></text>
-          </g>
-        </svg>
+        <div
+          id="aethermoor-phaser"
+          phx-hook="AethermoorPhaser"
+          phx-update="ignore"
+          data-zones={Jason.encode!(@zones)}
+          data-agents={Jason.encode!(map_agents(@agents))}
+          style="min-height:360px;border-radius:16px;overflow:hidden;background:#16120d;"
+        >
+          <div style="padding:16px;color:#f7e8c7;">
+            Loading Phaser world viewer...
+          </div>
+        </div>
+        <div style="margin-top:8px;color:#6b5a46;font-size:13px;">
+          Phaser 4 viewer. Click an agent marker to inspect its on-chain state and memory.
+        </div>
       </div>
 
       <h2>Economy</h2>
@@ -192,37 +184,11 @@ defmodule AFWWeb.DashboardLive do
     end
   end
 
-  defp pct(value) when is_number(value), do: "#{Float.round(value * 100, 2)}%"
+  defp pct(value) when is_number(value), do: "#{Float.round(value * 100.0, 2)}%"
   defp pct(_), do: "0.0%"
 
+  defp map_agents(agents), do: Enum.map(agents, &map_agent/1)
   defp map_agent(agent), do: agent[:map] || AFW.World.MapState.agent_view(agent)
-
-  defp zone_fill("SAFE"), do: "#dff0d0"
-  defp zone_fill("MEDIUM"), do: "#eee0aa"
-  defp zone_fill("DANGER"), do: "#edc18f"
-  defp zone_fill("EXTREME"), do: "#d3b4c6"
-  defp zone_fill(_), do: "#e7dcc8"
-
-  defp agent_fill(1), do: "#d95f43"
-  defp agent_fill(2), do: "#4779d4"
-  defp agent_fill(3), do: "#4f9f63"
-  defp agent_fill(_), do: "#6f6251"
-
-  defp hp_stroke(agent) do
-    cond do
-      hp_ratio(agent) <= 0.35 -> "#bd2d2d"
-      hp_ratio(agent) <= 0.7 -> "#c9892b"
-      true -> "#2f8f46"
-    end
-  end
-
-  defp hp_dash(agent), do: Float.round(hp_ratio(agent) * 100, 1)
-
-  defp hp_ratio(agent) do
-    hp = agent[:hp] || 0
-    max_hp = max(agent[:max_hp] || 1, 1)
-    hp / max_hp
-  end
 
   defp settlement_status([latest | _]) do
     case latest[:status] do

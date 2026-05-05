@@ -35,7 +35,8 @@ defmodule AFW.Phase1.Replay do
     payload = %{
       status: "passed",
       checkedAt: DateTime.utc_now(),
-      scope: "Phase 1 memory and LiveView map replay",
+      scope: "Phase 1 memory and Phaser LiveView map replay",
+      viewer: "Phaser 4 LiveView hook",
       ticks: ticks,
       zones: MapState.zones(),
       memory:
@@ -97,9 +98,10 @@ defmodule AFW.Phase1.Replay do
     - Treasury-backed world events now use an off-chain lifecycle cooldown, so a high EventTreasury balance does not dominate every agent tick.
     - Agent memory is available through an ETS-backed memory stream with optional JSONL persistence.
     - Prompt construction includes relevant memories before the decision section.
-    - Phoenix LiveView renders a deterministic 2D Aethermoor map with agent position, action, class color, and HP ring.
+    - Phoenix LiveView renders a Phaser 4 Aethermoor map with agent position, action, class color, HP ring, and click-to-inspect navigation.
     - Agent inspect pages show recent runtime memories alongside the on-chain snapshot.
     - A deterministic replay script validates map and memory output without requiring Base Sepolia writes.
+    - The Phoenix endpoint serves LiveView client JS from local Mix dependencies and loads Phaser 4 from the official CDN package path.
 
     ## Latest Replay
 
@@ -108,6 +110,7 @@ defmodule AFW.Phase1.Replay do
     - Ticks replayed: #{length(payload.ticks)}
     - Agents rendered per tick: #{length(List.first(payload.ticks).agents)}
     - Internal artifact: #{Path.relative_to(artifact_path, root)}
+    - Viewer standard: #{payload.viewer}
 
     ## Command
 
@@ -118,9 +121,9 @@ defmodule AFW.Phase1.Replay do
 
     ## Remaining Phase 1 Work
 
-    - Replace the SVG map MVP with the approved Phaser-based interactive viewer.
     - Add durable SQLite/embedding-backed memory retrieval once visual behavior is stable.
     - Add click-to-inspect monologue and richer social memory surfaces.
+    - Add Tiled-authored maps and sprite assets; current Phase 1 viewer uses generated zone geometry as the first integration slice.
     """
 
     File.write!(path, body)
