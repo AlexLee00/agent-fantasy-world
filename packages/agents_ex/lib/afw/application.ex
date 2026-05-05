@@ -15,6 +15,7 @@ defmodule AFW.Application do
       {AFW.Combat.Stats, []},
       {AFW.Simulation.Metrics, []},
       {AFW.Memory.Store, []},
+      {AFW.Social.Dialogue, []},
       {AFW.Agent.Supervisor, []},
       {AFW.Contribution.Agent, []},
       {AFW.Guardian.Metrics, []},

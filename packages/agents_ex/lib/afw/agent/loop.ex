@@ -7,6 +7,7 @@ defmodule AFW.Agent.Loop do
   alias AFW.Memory.{Reflection, Retriever, Store}
   alias AFW.Settlement.Hub
   alias AFW.Settlement.State, as: SettlementState
+  alias AFW.Social.Dialogue
   alias AFW.World.Combat
   alias AFW.World.Event
 
@@ -88,7 +89,8 @@ defmodule AFW.Agent.Loop do
       action: decision["action"] || decision[:action] || "EXPLORE",
       target: decision["target"] || decision[:target] || "",
       summary: result.summary,
-      event: event.type
+      event: event.type,
+      dialogue: dialogue_line(decision, result)
     }
 
     next_state = %{
@@ -101,6 +103,7 @@ defmodule AFW.Agent.Loop do
     }
 
     record_memory(next_state.agent_id, history_entry)
+    record_dialogue(next_state, history_entry)
     maybe_reflect(next_state.agent_id, next_state.tick_count)
     next_state
   end
@@ -343,7 +346,18 @@ defmodule AFW.Agent.Loop do
         npc -> npc.name
       end
 
-    %{summary: "TALK #{npc_name} -> gathered local information off-chain.", status: :alive}
+    dialogue =
+      case event.type do
+        :npc -> "I asked #{npc_name} what changed in #{context.zone["name"]}."
+        :monster -> "I will learn about #{event.target} before rushing into danger."
+        _ -> "I traded rumors with #{npc_name} and marked it in memory."
+      end
+
+    %{
+      summary: "TALK #{npc_name} -> gathered local information off-chain.",
+      dialogue: dialogue,
+      status: :alive
+    }
   end
 
   defp explore(_context, event) do
@@ -686,12 +700,40 @@ defmodule AFW.Agent.Loop do
       tick: history_entry.tick,
       action: history_entry.action,
       target: history_entry.target,
+      event: history_entry.event,
+      dialogue: history_entry.dialogue
+    })
+  rescue
+    _ -> :ok
+  catch
+    :exit, _ -> :ok
+  end
+
+  defp record_dialogue(state, %{action: "TALK", dialogue: dialogue} = history_entry)
+       when is_binary(dialogue) do
+    Dialogue.record(state.agent_id, state.label || "Agent", dialogue, %{
+      tick: history_entry.tick,
+      target: history_entry.target,
       event: history_entry.event
     })
   rescue
     _ -> :ok
   catch
     :exit, _ -> :ok
+  end
+
+  defp record_dialogue(_state, _history_entry), do: :ok
+
+  defp dialogue_line(decision, result) do
+    [decision["dialogue"], decision[:dialogue], result[:dialogue]]
+    |> Enum.find_value(fn
+      value when is_binary(value) ->
+        value = String.trim(value)
+        if value == "", do: nil, else: value
+
+      _ ->
+        nil
+    end)
   end
 
   defp maybe_reflect(agent_id, tick) when tick > 0 and rem(tick, 50) == 0 do

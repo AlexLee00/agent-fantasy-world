@@ -138,6 +138,7 @@
         });
 
         node.body.setFillStyle(agentFill(agent.class_id), 1);
+        node.body.setStrokeStyle(2, actionStroke(agent.action), 1);
         node.hp.clear();
         node.hp.lineStyle(4, hpStroke(agent), 1);
         node.hp.beginPath();
@@ -145,6 +146,11 @@
         node.hp.strokePath();
         node.label.setText(`${agent.label} #${agent.agent_id}`);
         node.action.setText(agent.action || "IDLE");
+        node.speech.setText(agent.speech || "");
+        node.speechBg.setVisible(Boolean(agent.speech));
+        node.speech.setVisible(Boolean(agent.speech));
+        sizeSpeechBubble(node);
+        applyActionEffect(this, node, agent);
       }
 
       for (const [key, node] of this.agentNodes.entries()) {
@@ -179,14 +185,27 @@
         strokeThickness: 3
       });
 
-      container.add([shadow, body, hp, label, action]);
+      const speechBg = this.add.rectangle(72, -54, 160, 34, 0xfffbef, 0.92);
+      speechBg.setOrigin(0.5, 0.5);
+      speechBg.setStrokeStyle(1, 0x6d5b45, 0.9);
+      speechBg.setVisible(false);
+
+      const speech = this.add.text(2, -66, "", {
+        fontFamily: "Georgia, serif",
+        fontSize: "12px",
+        color: "#2b241b",
+        wordWrap: { width: 140 }
+      });
+      speech.setVisible(false);
+
+      container.add([shadow, body, hp, speechBg, speech, label, action]);
       container.setSize(190, 44);
       container.setInteractive(new window.Phaser.Geom.Circle(0, 0, 24), window.Phaser.Geom.Circle.Contains);
       container.on("pointerdown", () => {
         window.location.href = `/agents/${agent.agent_id}`;
       });
 
-      return { container, body, hp, label, action };
+      return { container, body, hp, label, action, speechBg, speech, lastEffect: null };
     }
   }
 
@@ -255,6 +274,95 @@
       default:
         return 0x6f6251;
     }
+  }
+
+  function actionStroke(action) {
+    switch (action) {
+      case "FIGHT":
+        return 0xffd166;
+      case "REST":
+        return 0xa7e3a1;
+      case "TRADE":
+        return 0x8fd3ff;
+      case "TALK":
+        return 0xfff3a3;
+      case "EXPLORE":
+        return 0xd4b483;
+      default:
+        return 0x1f1b16;
+    }
+  }
+
+  function applyActionEffect(scene, node, agent) {
+    const action = agent.action || "IDLE";
+    if (node.lastEffect === `${action}:${agent.tick}`) return;
+    node.lastEffect = `${action}:${agent.tick}`;
+
+    scene.tweens.killTweensOf([node.container, node.body, node.speechBg]);
+    node.container.setScale(1);
+    node.body.setAlpha(1);
+    node.speechBg.setAlpha(0.92);
+
+    switch (action) {
+      case "FIGHT":
+        scene.tweens.add({
+          targets: node.container,
+          scale: 1.18,
+          duration: 140,
+          yoyo: true,
+          repeat: 2,
+          ease: "Back.easeOut"
+        });
+        break;
+      case "REST":
+        scene.tweens.add({
+          targets: node.body,
+          alpha: 0.55,
+          duration: 900,
+          yoyo: true,
+          repeat: 1,
+          ease: "Sine.easeInOut"
+        });
+        break;
+      case "TRADE":
+        scene.tweens.add({
+          targets: node.container,
+          angle: 6,
+          duration: 180,
+          yoyo: true,
+          repeat: 2,
+          ease: "Sine.easeInOut"
+        });
+        break;
+      case "TALK":
+        scene.tweens.add({
+          targets: node.speechBg,
+          alpha: 0.55,
+          duration: 420,
+          yoyo: true,
+          repeat: 2,
+          ease: "Sine.easeInOut"
+        });
+        break;
+      case "EXPLORE":
+        scene.tweens.add({
+          targets: node.container,
+          y: node.container.y - 4,
+          duration: 300,
+          yoyo: true,
+          ease: "Sine.easeInOut"
+        });
+        break;
+      default:
+        break;
+    }
+  }
+
+  function sizeSpeechBubble(node) {
+    if (!node.speech.visible) return;
+    const bounds = node.speech.getBounds();
+    node.speechBg.setSize(Math.max(bounds.width + 24, 90), Math.max(bounds.height + 16, 30));
+    node.speechBg.setPosition(bounds.x - node.container.x + bounds.width / 2, bounds.y - node.container.y + bounds.height / 2);
   }
 
   function hpStroke(agent) {

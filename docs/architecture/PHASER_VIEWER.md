@@ -12,6 +12,8 @@ AFW keeps Phoenix LiveView as the authoritative observer shell and mounts Phaser
 - `AFWWeb.DashboardLive` provides `zones` and `agents` as JSON data attributes.
 - `AethermoorPhaser` reads those attributes, creates a Phaser scene, and updates agent markers on LiveView patches.
 - Agent markers are clickable and navigate to `/agents/:id`.
+- Agent markers render speech bubbles from the latest action dialogue.
+- Action states apply lightweight marker animation: fight pulse, rest breathing, trade sway, talk bubble pulse, and explore step.
 - The first Tiled map source is served from `/assets/maps/aethermoor_overview.tmj`.
 
 ## Divergence From AI Town
@@ -27,5 +29,6 @@ AI Town is useful as a product reference for inspectable AI residents, memory-dr
 
 - Replace generated geometric zones with production Tiled maps per zone.
 - Add sprite sheets for agent classes, monsters, NPCs, and action states.
-- Add dialogue bubbles and click-to-inspect monologue panels.
+- Replace generated marker animation with sprite-sheet animation.
+- Extend dialogue bubbles into multi-agent conversation panels.
 - Add replay controls using the Phase 1 replay artifact format.

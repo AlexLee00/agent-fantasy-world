@@ -10,6 +10,7 @@ defmodule AFWWeb.AgentLive do
        agent_id: agent_id,
        agent: agent,
        memories: AFW.Memory.Store.recent(agent_id, 20),
+       dialogue: AFW.Social.Dialogue.for_agent(agent_id, 20),
        monologue: AFW.Memory.Monologue.for_agent(agent_id, agent)
      )}
   end
@@ -28,6 +29,13 @@ defmodule AFWWeb.AgentLive do
         <strong><%= memory.type %></strong>
         <div><%= memory.content %></div>
         <small><%= memory.created_at %></small>
+      </div>
+      <h2>Dialogue Transcript</h2>
+      <div :if={@dialogue == []}>No dialogue recorded in this runtime session.</div>
+      <div :for={entry <- @dialogue} style="padding:10px;margin-bottom:8px;border-radius:12px;background:#f5f8ff;border:1px solid #d8def8;">
+        <strong><%= entry.speaker %></strong>
+        <div><%= entry.line %></div>
+        <small><%= entry.created_at %></small>
       </div>
       <h2>On-chain Snapshot</h2>
       <pre><%= inspect(@agent, pretty: true) %></pre>

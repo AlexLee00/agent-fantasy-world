@@ -3,6 +3,7 @@ Application.ensure_all_started(:afw)
 
 defmodule AFW.Phase1.Replay do
   alias AFW.Memory.{Reflection, Store}
+  alias AFW.Social.Dialogue
   alias AFW.World.MapState
 
   @agents [
@@ -17,6 +18,7 @@ defmodule AFW.Phase1.Replay do
 
   def run do
     Store.clear_all()
+    Dialogue.clear_all()
     AFW.World.EventLifecycle.reset()
 
     timestamp = DateTime.utc_now() |> DateTime.to_iso8601(:basic)
@@ -41,6 +43,7 @@ defmodule AFW.Phase1.Replay do
       mapSource: "/assets/maps/aethermoor_overview.tmj",
       ticks: ticks,
       zones: MapState.zones(),
+      dialogue: Dialogue.recent(20),
       memory:
         Map.new(@agents, fn agent ->
           {agent.agent_id, Store.recent(agent.agent_id, 5)}
@@ -68,15 +71,24 @@ defmodule AFW.Phase1.Replay do
       last_action: %{
         action: action,
         target: target_for(action, agent.zone_id),
-        summary: "#{action} at #{target_for(action, agent.zone_id)}"
+        summary: "#{action} at #{target_for(action, agent.zone_id)}",
+        dialogue: dialogue_for(action, agent)
       }
     }
 
     Store.record(agent.agent_id, :action, state.last_action.summary, %{
       tick: tick,
       action: action,
-      zone_id: agent.zone_id
+      zone_id: agent.zone_id,
+      dialogue: state.last_action.dialogue
     })
+
+    if action == "TALK" do
+      Dialogue.record(agent.agent_id, agent.label, state.last_action.dialogue, %{
+        tick: tick,
+        target: state.last_action.target
+      })
+    end
 
     MapState.agent_view(state)
   end
@@ -86,6 +98,12 @@ defmodule AFW.Phase1.Replay do
   defp target_for("TRADE", _zone_id), do: "marketplace"
   defp target_for("FIGHT", _zone_id), do: "nearby monster"
   defp target_for("REST", _zone_id), do: "tavern"
+
+  defp dialogue_for("TALK", agent), do: "I heard a rumor near zone #{agent.zone_id}."
+  defp dialogue_for("REST", _agent), do: "I need a safe place to recover."
+  defp dialogue_for("TRADE", _agent), do: "The market may have an opening."
+  defp dialogue_for("FIGHT", _agent), do: "I will test these odds carefully."
+  defp dialogue_for("EXPLORE", agent), do: "The roads of zone #{agent.zone_id} may reveal something."
 
   defp write_public_summary!(root, payload, artifact_path) do
     path = Path.join(root, "docs/architecture/PHASE_1_VALIDATION.md")
@@ -102,7 +120,9 @@ defmodule AFW.Phase1.Replay do
     - Agent memory is durable through SQLite and can use Ollama `/api/embed` when `MEMORY_EMBEDDING_PROVIDER=ollama`.
     - Prompt construction includes relevant memories before the decision section.
     - Phoenix LiveView renders a Phaser 4 Aethermoor map with agent position, action, class color, HP ring, and click-to-inspect navigation.
+    - Phaser markers render speech bubbles and action-state animations for FIGHT, REST, TRADE, TALK, and EXPLORE.
     - The Phaser viewer loads the first Tiled JSON map from `/assets/maps/aethermoor_overview.tmj`.
+    - TALK actions are captured in an off-chain dialogue transcript and shown on dashboard/agent inspect views.
     - Agent inspect pages show recent runtime memories alongside the on-chain snapshot.
     - A deterministic replay script validates map and memory output without requiring Base Sepolia writes.
     - The Phoenix endpoint serves LiveView client JS from local Mix dependencies and loads Phaser 4 from the official CDN package path.

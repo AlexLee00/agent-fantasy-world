@@ -11,7 +11,11 @@ defmodule AFW.World.MapStateTest do
       zone_id: 1,
       tick_count: 7,
       stats: %{hp: 72, max_hp: 100},
-      last_action: %{action: "EXPLORE", summary: "Moved through Lumenveil"}
+      last_action: %{
+        action: "EXPLORE",
+        summary: "Moved through Lumenveil",
+        dialogue: "The roads may reveal something useful."
+      }
     }
 
     view = MapState.agent_view(state)
@@ -20,6 +24,7 @@ defmodule AFW.World.MapStateTest do
     assert view.zone == "Lumenveil"
     assert view.hp == 72
     assert view.action == "EXPLORE"
+    assert view.speech == "The roads may reveal something useful."
     assert view.x == MapState.agent_view(state).x
     assert view.y == MapState.agent_view(state).y
   end

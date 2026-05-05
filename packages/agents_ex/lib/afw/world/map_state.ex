@@ -32,6 +32,7 @@ defmodule AFW.World.MapState do
       max_hp: stat(stats, :max_hp, "max_hp", stat(stats, :maxHp, "maxHp", 100)),
       action: last_action[:action] || last_action["action"] || "IDLE",
       summary: last_action[:summary] || last_action["summary"] || "",
+      speech: speech(last_action),
       tick: tick
     }
   end
@@ -52,5 +53,29 @@ defmodule AFW.World.MapState do
 
   defp stat(stats, atom_key, string_key, default) do
     Map.get(stats, atom_key) || Map.get(stats, string_key) || default
+  end
+
+  defp speech(last_action) do
+    explicit = last_action[:dialogue] || last_action["dialogue"]
+
+    cond do
+      is_binary(explicit) and String.trim(explicit) != "" ->
+        String.slice(explicit, 0, 90)
+
+      (last_action[:action] || last_action["action"]) == "REST" ->
+        "I need a safe place to recover."
+
+      (last_action[:action] || last_action["action"]) == "TRADE" ->
+        "The market may have an opening."
+
+      (last_action[:action] || last_action["action"]) == "FIGHT" ->
+        "I will test these odds carefully."
+
+      (last_action[:action] || last_action["action"]) == "EXPLORE" ->
+        "The roads may reveal something."
+
+      true ->
+        ""
+    end
   end
 end

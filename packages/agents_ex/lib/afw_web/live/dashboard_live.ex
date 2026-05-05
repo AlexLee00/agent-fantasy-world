@@ -6,11 +6,13 @@ defmodule AFWWeb.DashboardLive do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(AFW.PubSub, "agents")
       Phoenix.PubSub.subscribe(AFW.PubSub, "guardian")
+      Phoenix.PubSub.subscribe(AFW.PubSub, "dialogue")
     end
 
     {:ok,
      assign(socket,
        agents: [],
+       dialogue: AFW.Social.Dialogue.recent(8),
        zones: AFW.World.MapState.zones(),
        combat: AFW.Combat.Stats.snapshot(),
        guardian: %{},
@@ -61,6 +63,10 @@ defmodule AFWWeb.DashboardLive do
 
   def handle_info({:combat_stats, payload}, socket) do
     {:noreply, assign(socket, combat: payload)}
+  end
+
+  def handle_info({:dialogue_recorded, entry}, socket) do
+    {:noreply, assign(socket, dialogue: Enum.take([entry | socket.assigns.dialogue], 8))}
   end
 
   @impl true
@@ -130,6 +136,18 @@ defmodule AFWWeb.DashboardLive do
         <div :if={agent[:settlement]}>
           SOUL: <%= agent.settlement.confirmedSoul %> (confirmed) + <%= agent.settlement.pendingSoul %> (pending) = <%= agent.settlement.displaySoul %>
           · <%= settlement_status(agent.settlement.recentEvents || []) %>
+        </div>
+      </div>
+
+      <h2>Dialogue</h2>
+      <div style="display:grid;gap:8px;margin-bottom:18px;">
+        <div :if={@dialogue == []} style="padding:12px;border-radius:14px;background:#f5f8ff;border:1px solid #d8def8;">
+          No dialogue recorded yet.
+        </div>
+        <div :for={entry <- @dialogue} style="padding:12px;border-radius:14px;background:#f5f8ff;border:1px solid #d8def8;">
+          <strong><%= entry.speaker %> #<%= entry.agent_id %></strong>
+          <span style="color:#6b5a46;"> · <%= entry.metadata[:target] || "nearby" %></span>
+          <div style="font-size:16px;line-height:1.45;"><%= entry.line %></div>
         </div>
       </div>
 
