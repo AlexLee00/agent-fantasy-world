@@ -5,6 +5,7 @@ defmodule AFW.Brain.PromptBuilder do
     agent = context.agent
     zone = context.zone
     history = Map.get(context, :history, [])
+    memories = Map.get(context, :memories, [])
     hp = agent["stats"]["hp"]
     max_hp = max(agent["stats"]["maxHp"], 1)
     hp_ratio = hp / max_hp
@@ -35,6 +36,9 @@ defmodule AFW.Brain.PromptBuilder do
     Active market orders: #{length(context.orders)}
     Treasury balance: #{context.treasury_balance}
     Recent actions: #{format_history(history)}
+
+    == RELEVANT MEMORY ==
+    #{format_memories(memories)}
 
     == EVENT ==
     Type: #{event.type}
@@ -77,6 +81,17 @@ defmodule AFW.Brain.PromptBuilder do
     history
     |> Enum.map(fn entry -> "#{entry.action}@tick#{entry.tick}" end)
     |> Enum.join(", ")
+  end
+
+  defp format_memories([]), do: "none"
+
+  defp format_memories(memories) do
+    memories
+    |> Enum.take(5)
+    |> Enum.map(fn memory ->
+      "- #{memory.type}: #{memory.content}"
+    end)
+    |> Enum.join("\n")
   end
 
   defp injury_guidance(hp_ratio) when hp_ratio < 0.4,

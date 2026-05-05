@@ -31,13 +31,18 @@ defmodule AFW.Brain.PromptBuilderTest do
       npcs: [],
       items: [],
       orders: [],
-      treasury_balance: 0
+      treasury_balance: 0,
+      memories: [
+        %{type: :reflection, content: "Recent pattern: EXPLORE=2, TALK=1."}
+      ]
     }
 
     event = %AFW.World.Event{type: :explore, target: "path", summary: "The roads are quiet."}
     prompt = AFW.Brain.PromptBuilder.build(context, event)
     assert prompt =~ "YOUR IDENTITY"
     assert prompt =~ "WORLD ECONOMY"
+    assert prompt =~ "RELEVANT MEMORY"
+    assert prompt =~ "Recent pattern"
     assert prompt =~ "The roads are quiet."
   end
 end

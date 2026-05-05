@@ -4,6 +4,7 @@ defmodule AFW.Agent.Loop do
   alias AFW.Brain.PromptBuilder
   alias AFW.Chain.{Client, Reader}
   alias AFW.Economy.Constants
+  alias AFW.Memory.{Reflection, Retriever, Store}
   alias AFW.Settlement.Hub
   alias AFW.Settlement.State, as: SettlementState
   alias AFW.World.Combat
@@ -20,7 +21,7 @@ defmodule AFW.Agent.Loop do
   def execute_tick(state) do
     snapshot = SettlementState.get_agent_view(state.agent_id)
 
-    context = %{
+    base_context = %{
       agent: snapshot.agent,
       zone: snapshot.zone,
       monsters: snapshot.monsters,
@@ -32,7 +33,10 @@ defmodule AFW.Agent.Loop do
       history: Enum.take(state.history || [], -5)
     }
 
-    event = Event.generate(context, state.tick_count + 1)
+    event = Event.generate(base_context, state.tick_count + 1)
+
+    context =
+      Map.put(base_context, :memories, Retriever.relevant_for_context(base_context, event))
 
     decision =
       case forced_decision(context, state) do
@@ -87,7 +91,7 @@ defmodule AFW.Agent.Loop do
       event: event.type
     }
 
-    %{
+    next_state = %{
       state
       | tick_count: state.tick_count + 1,
         history: (state.history || []) ++ [history_entry],
@@ -95,6 +99,10 @@ defmodule AFW.Agent.Loop do
         post_combat_cooldown: next_cooldown,
         consecutive_trades: next_trade_streak(state, decision["action"] || decision[:action])
     }
+
+    record_memory(next_state.agent_id, history_entry)
+    maybe_reflect(next_state.agent_id, next_state.tick_count)
+    next_state
   end
 
   defp forced_decision(context, state) do
@@ -672,4 +680,27 @@ defmodule AFW.Agent.Loop do
   defp explore_with_reason(reason) do
     %{summary: "#{reason}. Explored the nearby roads instead.", status: :traveling}
   end
+
+  defp record_memory(agent_id, history_entry) do
+    Store.record(agent_id, :action, history_entry.summary, %{
+      tick: history_entry.tick,
+      action: history_entry.action,
+      target: history_entry.target,
+      event: history_entry.event
+    })
+  rescue
+    _ -> :ok
+  catch
+    :exit, _ -> :ok
+  end
+
+  defp maybe_reflect(agent_id, tick) when tick > 0 and rem(tick, 50) == 0 do
+    Reflection.reflect(agent_id, tick)
+  rescue
+    _ -> :ok
+  catch
+    :exit, _ -> :ok
+  end
+
+  defp maybe_reflect(_agent_id, _tick), do: :ok
 end

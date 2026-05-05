@@ -1,6 +1,8 @@
 defmodule AFW.World.Event do
   @moduledoc "Generates agent-facing world events from on-chain snapshots."
 
+  alias AFW.World.EventLifecycle
+
   defstruct [:type, :title, :summary, :target, :metadata]
 
   def generate(context, _tick) do
@@ -8,8 +10,8 @@ defmodule AFW.World.Event do
     max_hp = max(get_in(context, [:agent, "stats", "maxHp"]) || 1, 1)
     treasury_balance = context[:treasury_balance] || 0
 
-    cond do
-      treasury_balance >= 10_000 * 1_000_000_000_000_000_000 ->
+    case EventLifecycle.treasury_event(treasury_balance) do
+      :world_boss ->
         %__MODULE__{
           type: :world_boss,
           title: "World Boss awakened",
@@ -17,7 +19,7 @@ defmodule AFW.World.Event do
           target: "world boss"
         }
 
-      treasury_balance >= 5_000 * 1_000_000_000_000_000_000 ->
+      :zone_event ->
         %__MODULE__{
           type: :zone_event,
           title: "Zone boss surge",
@@ -25,7 +27,7 @@ defmodule AFW.World.Event do
           target: "zone boss"
         }
 
-      treasury_balance >= 1_000 * 1_000_000_000_000_000_000 ->
+      :mini_event ->
         %__MODULE__{
           type: :mini_event,
           title: "Rare spawn surge",
@@ -33,6 +35,13 @@ defmodule AFW.World.Event do
           target: "rare monster"
         }
 
+      nil ->
+        normal_event(context, hp, max_hp)
+    end
+  end
+
+  defp normal_event(context, hp, max_hp) do
+    cond do
       hp / max_hp < 0.3 ->
         %__MODULE__{
           type: :survival,

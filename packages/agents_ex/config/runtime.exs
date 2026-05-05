@@ -54,6 +54,9 @@ config :afw,
     System.get_env("ECONOMY_METRICS_PATH", "../agents/logs/economy_metrics.json"),
   simulation_metrics_path:
     System.get_env("SIMULATION_METRICS_PATH", "../agents/logs/simulation_metrics.json"),
+  memory_log_path: System.get_env("MEMORY_LOG_PATH", "../agents/logs/memory_stream.jsonl"),
+  world_event_cooldown_ms:
+    String.to_integer(System.get_env("WORLD_EVENT_COOLDOWN_MS", "1800000")),
   simulation_ticks: String.to_integer(System.get_env("SIMULATION_TICKS", "50")),
   contracts: %{
     afw_token: contract.("AFWToken"),

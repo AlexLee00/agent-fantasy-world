@@ -6,6 +6,7 @@ defmodule AFW.Agent.Server do
   alias AFW.Agent.State
   alias AFW.Agent.Loop
   alias AFW.Simulation.Metrics
+  alias AFW.World.MapState
 
   def start_link(opts) do
     name =
@@ -80,7 +81,8 @@ defmodule AFW.Agent.Server do
     Phoenix.PubSub.broadcast(
       AFW.PubSub,
       "agents",
-      {:agent_updated, Map.from_struct(new_state)}
+      {:agent_updated,
+       Map.from_struct(new_state) |> Map.put(:map, MapState.agent_view(new_state))}
     )
 
     unless new_state.tick_count >= new_state.max_ticks do
