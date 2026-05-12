@@ -10,6 +10,8 @@ multisig-reviewable proposals, and Tier 4 node-provider readiness.
 - Invalid recipients such as GitHub-only identities are separated into `unresolvedRecipients`.
 - Settlement Hub submission is gated by `CONTRIBUTION_AUTO_SUBMIT=false` by default.
 - Dashboard exposes the latest Contribution Agent proposal summary.
+- Distribution deployment now has a status checker for deployed addresses and `DISTRIBUTOR_ROLE` readiness.
+- Distribution deployment grants `DISTRIBUTOR_ROLE` to the configured `DISTRIBUTION_EXECUTOR_ADDRESS` or multisig admin.
 
 ## Latest Dry Run
 
@@ -29,10 +31,17 @@ cd packages/agents_ex
 mix run --no-start scripts/run_phase2_reward_dry_run.exs
 ```
 
+Distribution readiness:
+
+```bash
+cd packages/contracts
+ALLOW_MISSING_DISTRIBUTION=true NODE_ENV=development npx hardhat run scripts/check-distribution.ts --network base-sepolia
+```
+
 ## Remaining Phase 2 Work
 
 - Deploy or verify distribution pool addresses on Base Sepolia in `deployments.json`.
-- Grant `DISTRIBUTOR_ROLE` to the approved multisig/distributor path.
+- Run `scripts/check-distribution.ts` without `ALLOW_MISSING_DISTRIBUTION=true` after deployment.
 - Map GitHub contributors to payout addresses before enabling auto-submit.
 - Register at least one real Tier 4 node endpoint and verify paid inference.
 - Run the first multisig-approved reward distribution on testnet.

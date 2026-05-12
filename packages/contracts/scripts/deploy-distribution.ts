@@ -59,6 +59,7 @@ async function main() {
   const teamWallet = process.env.TEAM_WALLET_ADDRESS || deployer.address;
   const advisorWallet = process.env.ADVISOR_WALLET_ADDRESS || deployer.address;
   const lpWallet = process.env.MARKETPLACE_LP_WALLET || deployer.address;
+  const distributionExecutor = process.env.DISTRIBUTION_EXECUTOR_ADDRESS || admin;
   const feeOverrides = await getFeeOverrides();
 
   console.log("Distribution deployer:", deployer.address);
@@ -100,6 +101,8 @@ async function main() {
 
   await sendAndWait(nodeRewardPool.contract.grantRole(DISTRIBUTOR_ROLE, distributor.proxy, feeOverrides));
   await sendAndWait(bountyPool.contract.grantRole(DISTRIBUTOR_ROLE, distributor.proxy, feeOverrides));
+  await sendAndWait(nodeRewardPool.contract.grantRole(DISTRIBUTOR_ROLE, distributionExecutor, feeOverrides));
+  await sendAndWait(bountyPool.contract.grantRole(DISTRIBUTOR_ROLE, distributionExecutor, feeOverrides));
 
   existing.TeamVestingWallet = teamVesting.proxy;
   existing.AdvisorVestingWallet = advisorVesting.proxy;
