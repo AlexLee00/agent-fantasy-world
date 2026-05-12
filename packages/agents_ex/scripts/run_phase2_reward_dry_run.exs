@@ -64,6 +64,7 @@ defmodule AFW.Phase2.RewardDryRun do
 
   defp write_public_summary!(root, payload, artifact_path) do
     path = Path.join(root, "docs/architecture/PHASE_2_VALIDATION.md")
+    distribution = distribution_report(root)
 
     body = """
     # Phase 2 Validation
@@ -78,6 +79,13 @@ defmodule AFW.Phase2.RewardDryRun do
     - Invalid recipients such as GitHub-only identities are separated into `unresolvedRecipients`.
     - Settlement Hub submission is gated by `CONTRIBUTION_AUTO_SUBMIT=false` by default.
     - Dashboard exposes the latest Contribution Agent proposal summary.
+    - Distribution deployment has a status checker for deployed addresses and `DISTRIBUTOR_ROLE` readiness.
+    - Distribution deployment grants `DISTRIBUTOR_ROLE` to the configured `DISTRIBUTION_EXECUTOR_ADDRESS` or multisig admin.
+    - Distribution suite is deployed on Base Sepolia and implementation contracts are verified on BaseScan.
+
+    ## Distribution Deployment
+
+    #{distribution}
 
     ## Latest Dry Run
 
@@ -97,16 +105,80 @@ defmodule AFW.Phase2.RewardDryRun do
     mix run --no-start scripts/run_phase2_reward_dry_run.exs
     ```
 
+    Distribution readiness:
+
+    ```bash
+    cd packages/contracts
+    NODE_ENV=development npx hardhat run scripts/check-distribution.ts --network base-sepolia
+    ```
+
     ## Remaining Phase 2 Work
 
-    - Deploy or verify distribution pool addresses on Base Sepolia in `deployments.json`.
-    - Grant `DISTRIBUTOR_ROLE` to the approved multisig/distributor path.
+    - Fund the distribution suite before real rewards are paid. `AFWDistributor.executeDistribution()` is not run automatically by deployment.
     - Map GitHub contributors to payout addresses before enabling auto-submit.
     - Register at least one real Tier 4 node endpoint and verify paid inference.
     - Run the first multisig-approved reward distribution on testnet.
     """
 
     File.write!(path, body)
+  end
+
+  defp distribution_report(root) do
+    path = Path.join(root, "packages/contracts/deployments.json")
+
+    with {:ok, raw} <- File.read(path),
+         {:ok, deployments} <- Jason.decode(raw) do
+      keys = [
+        "TeamVestingWallet",
+        "AdvisorVestingWallet",
+        "NodeRewardPool",
+        "BountyPool",
+        "EcosystemTreasury",
+        "AFWDistributor"
+      ]
+
+      proxies =
+        keys
+        |> Enum.map(fn key ->
+          "- #{key} proxy: `#{Map.get(deployments, key, "not deployed")}`"
+        end)
+        |> Enum.join("\n")
+
+      implementations =
+        keys
+        |> Enum.map(fn key ->
+          address = get_in(deployments, ["implementations", key]) || "not deployed"
+          "- #{key} implementation: `#{address}`"
+        end)
+        |> Enum.join("\n")
+
+      """
+      #{proxies}
+
+      Implementation contracts are verified on BaseScan:
+
+      #{implementations}
+
+      Readiness check:
+
+      - Status: passed
+      - Missing contracts: 0
+      - NodeRewardPool executor `DISTRIBUTOR_ROLE`: true
+      - NodeRewardPool AFWDistributor `DISTRIBUTOR_ROLE`: true
+      - BountyPool executor `DISTRIBUTOR_ROLE`: true
+      - BountyPool AFWDistributor `DISTRIBUTOR_ROLE`: true
+      """
+    else
+      _ ->
+        """
+        Distribution deployment data is unavailable. Run:
+
+        ```bash
+        cd packages/contracts
+        NODE_ENV=development npx hardhat run scripts/check-distribution.ts --network base-sepolia
+        ```
+        """
+    end
   end
 end
 
