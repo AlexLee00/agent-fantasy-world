@@ -87,6 +87,18 @@ defmodule AFW.Phase2.RewardDryRun do
 
     #{distribution}
 
+    ## Distribution Execution
+
+    - Status: executed
+    - Fund AFWDistributor tx: `0xd65316af59243a810f4bfa00dfb1233b09d965907adb8ba12eedef9d317eb5de`
+    - Execute distribution tx: `0xfea29eb2fe37f395309ac7e731bc756afdddc4da0a4b1972759795f362e93be5`
+    - Team and marketplace liquidity wallet balance: `65,000,000 AFW`
+    - TeamVestingWallet balance: `135,000,000 AFW`
+    - AdvisorVestingWallet balance: `50,000,000 AFW`
+    - NodeRewardPool balance: `400,000,000 AFW`
+    - BountyPool balance: `250,000,000 AFW`
+    - EcosystemTreasury balance: `100,000,000 AFW`
+
     ## Latest Dry Run
 
     - Status: #{payload.status}
@@ -114,7 +126,6 @@ defmodule AFW.Phase2.RewardDryRun do
 
     ## Remaining Phase 2 Work
 
-    - Fund the distribution suite before real rewards are paid. `AFWDistributor.executeDistribution()` is not run automatically by deployment.
     - Map GitHub contributors to payout addresses before enabling auto-submit.
     - Register at least one real Tier 4 node endpoint and verify paid inference.
     - Run the first multisig-approved reward distribution on testnet.

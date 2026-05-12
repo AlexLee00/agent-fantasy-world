@@ -42,16 +42,28 @@ Readiness check:
 - BountyPool AFWDistributor `DISTRIBUTOR_ROLE`: true
 
 
+## Distribution Execution
+
+- Status: executed
+- Fund AFWDistributor tx: `0xd65316af59243a810f4bfa00dfb1233b09d965907adb8ba12eedef9d317eb5de`
+- Execute distribution tx: `0xfea29eb2fe37f395309ac7e731bc756afdddc4da0a4b1972759795f362e93be5`
+- Team and marketplace liquidity wallet balance: `65,000,000 AFW`
+- TeamVestingWallet balance: `135,000,000 AFW`
+- AdvisorVestingWallet balance: `50,000,000 AFW`
+- NodeRewardPool balance: `400,000,000 AFW`
+- BountyPool balance: `250,000,000 AFW`
+- EcosystemTreasury balance: `100,000,000 AFW`
+
 ## Latest Dry Run
 
 - Status: passed
-- Checked at: 2026-05-12 11:03:42.693782Z
+- Checked at: 2026-05-12 11:19:47.070817Z
 - Stored proposal count: 1
 - Proposal status: needs_recipient_mapping
 - Node recipients: 0
 - Bounty recipients: 1
 - Unresolved recipients: 1
-- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260512T110332.438366Z.json
+- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260512T111936.301188Z.json
 
 ## Command
 
@@ -69,7 +81,6 @@ NODE_ENV=development npx hardhat run scripts/check-distribution.ts --network bas
 
 ## Remaining Phase 2 Work
 
-- Fund the distribution suite before real rewards are paid. `AFWDistributor.executeDistribution()` is not run automatically by deployment.
 - Map GitHub contributors to payout addresses before enabling auto-submit.
 - Register at least one real Tier 4 node endpoint and verify paid inference.
 - Run the first multisig-approved reward distribution on testnet.
