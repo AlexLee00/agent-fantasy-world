@@ -1,45 +1,17 @@
 System.put_env("AFW_DISABLE_BOOT_AGENTS", "1")
 Application.ensure_all_started(:afw)
 
-defmodule AFW.Phase2.Tier4NodeSmoke.Router do
-  use Plug.Router
-
-  plug(:match)
-  plug(Plug.Parsers, parsers: [:json], json_decoder: Jason)
-  plug(:dispatch)
-
-  post "/infer" do
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(
-      200,
-      Jason.encode!(%{
-        action: %{
-          action: "EXPLORE",
-          confidence: 0.91,
-          reasoning: "Tier 4 smoke node returned a deterministic response.",
-          dialogue: "I will scout the next path.",
-          emotion: "focused"
-        }
-      })
-    )
-  end
-
-  match _ do
-    send_resp(conn, 404, "not found")
-  end
-end
-
 defmodule AFW.Phase2.Tier4NodeSmoke do
   alias AFW.Brain.NodeProvider
   alias AFW.Chain.Client
+  alias AFW.Tier4.NodeServer
 
   def run do
-    endpoint = System.get_env("TIER4_NODE_ENDPOINT", "http://127.0.0.1:18791/infer")
+    endpoint = System.get_env("TIER4_NODE_ENDPOINT", NodeServer.infer_url())
     uri = URI.parse(endpoint)
     port = uri.port || 18791
 
-    {:ok, _pid} = Plug.Cowboy.http(AFW.Phase2.Tier4NodeSmoke.Router, [], port: port)
+    {:ok, _pid} = NodeServer.start_link(port: port)
     operator = Client.account_address()
     nodes = Client.get_node_stats()
 

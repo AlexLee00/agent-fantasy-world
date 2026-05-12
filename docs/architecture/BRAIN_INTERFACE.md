@@ -170,6 +170,8 @@ All providers must return responses in this format:
 ### Community Nodes (Tier 4)
 Multiple nodes run the same prompt. OracleGateway requires 2/3 consensus on the `action` field before committing to chain.
 
+Operator runbook: `docs/architecture/TIER4_NODE_OPERATOR.md`.
+
 ### Tier 1/2/3
 Single-provider responses are hashed and recorded on-chain. The user is accountable for their provider's output.
 

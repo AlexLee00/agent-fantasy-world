@@ -105,6 +105,7 @@ defmodule AFW.Phase2.RewardDryRun do
     - Registered operator: `0x986d2be27bf2629e92a14fe7e95913369f26badc`
     - Test endpoint: `http://127.0.0.1:18791/infer`
     - Verified response action: `EXPLORE`
+    - Operator runbook: `docs/architecture/TIER4_NODE_OPERATOR.md`
 
     ## First Reward Distribution
 
@@ -157,7 +158,7 @@ defmodule AFW.Phase2.RewardDryRun do
 
     ## Remaining Phase 2 Work
 
-    - Replace the local Tier 4 smoke endpoint with an externally reachable community node.
+    - Run the Tier 4 node server behind an externally reachable domain and register that endpoint with a fresh operator wallet if needed.
     - Replace the testnet deployer payout mapping with contributor-owned payout addresses before production rewards.
     """
 
