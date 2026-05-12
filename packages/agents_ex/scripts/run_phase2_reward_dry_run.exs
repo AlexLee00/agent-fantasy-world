@@ -99,6 +99,24 @@ defmodule AFW.Phase2.RewardDryRun do
     - BountyPool balance: `250,000,000 AFW`
     - EcosystemTreasury balance: `100,000,000 AFW`
 
+    ## Tier 4 Node Smoke
+
+    - Status: passed
+    - Registered operator: `0x986d2be27bf2629e92a14fe7e95913369f26badc`
+    - Test endpoint: `http://127.0.0.1:18791/infer`
+    - Verified response action: `EXPLORE`
+
+    ## First Reward Distribution
+
+    - Status: passed
+    - Epoch: `1778586993`
+    - NodeRewardPool tx: `0x1949c3be6c78cbe550a524fa58e4a9a4b3933b98322cf2bd02933d49966596d2`
+    - BountyPool tx: `0xe223b97968d1d900cc3e395c2019fc302dbcdcd0c71574f3414f0ca71d97c420`
+    - Node rewards distributed: `1,000 AFW`
+    - Bounty rewards distributed: `999.999999999999934464 AFW`
+    - Settlement confirmed events: `2`
+    - Settlement failed events: `0`
+
     ## Latest Dry Run
 
     - Status: #{payload.status}
@@ -126,9 +144,8 @@ defmodule AFW.Phase2.RewardDryRun do
 
     ## Remaining Phase 2 Work
 
-    - Map GitHub contributors to payout addresses before enabling auto-submit.
-    - Register at least one real Tier 4 node endpoint and verify paid inference.
-    - Run the first multisig-approved reward distribution on testnet.
+    - Replace the local Tier 4 smoke endpoint with an externally reachable community node.
+    - Replace the testnet deployer payout mapping with contributor-owned payout addresses before production rewards.
     """
 
     File.write!(path, body)

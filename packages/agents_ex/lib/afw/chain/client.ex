@@ -79,4 +79,5 @@ defmodule AFW.Chain.Client do
     do: Writer.spawn_npc(type_id, zone_id, initial_soul)
 
   def set_npc_price(npc_id, item_id, price), do: Writer.set_npc_price(npc_id, item_id, price)
+  def register_node(tier, spec, endpoint), do: Writer.register_node(tier, spec, endpoint)
 end

@@ -1,6 +1,8 @@
 defmodule AFW.Contribution.Scorer do
   @moduledoc "Computes epoch contribution scores."
 
+  alias AFW.Contribution.RecipientMap
+
   def score(%{github: github, on_chain: on_chain}) do
     %{
       developers: developer_scores(github),
@@ -10,16 +12,22 @@ defmodule AFW.Contribution.Scorer do
   end
 
   def developer_scores(github) do
-    reward_address = Application.get_env(:afw, :contribution_developer_reward_address, "")
+    reward_address =
+      RecipientMap.resolve("github:repo") ||
+        Application.get_env(:afw, :contribution_developer_reward_address, "")
 
     [
       %{
-        address: if(valid_evm_address?(reward_address), do: reward_address, else: "github:repo"),
+        address:
+          if(RecipientMap.valid_evm_address?(reward_address),
+            do: reward_address,
+            else: "github:repo"
+          ),
         score:
           (github[:prs_merged] || 0) * 100 + (github[:issues_closed] || 0) * 50 +
             (github[:commits] || 0) * 10,
         source: "github",
-        unresolved_recipient: not valid_evm_address?(reward_address)
+        unresolved_recipient: not RecipientMap.valid_evm_address?(reward_address)
       }
     ]
   end
@@ -39,7 +47,4 @@ defmodule AFW.Contribution.Scorer do
       %{address: creator.address, score: creator.content_uses * 20, source: "creator"}
     end)
   end
-
-  defp valid_evm_address?(value) when is_binary(value), do: value =~ ~r/^0x[0-9a-fA-F]{40}$/
-  defp valid_evm_address?(_value), do: false
 end

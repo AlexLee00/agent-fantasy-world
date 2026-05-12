@@ -27,6 +27,21 @@ optional_contract = fn key ->
   System.get_env("#{String.upcase(key)}_ADDRESS") || Map.get(deployments, key)
 end
 
+recipient_map =
+  cond do
+    System.get_env("CONTRIBUTION_RECIPIENT_MAP", "") != "" ->
+      System.get_env("CONTRIBUTION_RECIPIENT_MAP")
+      |> Jason.decode!()
+
+    System.get_env("CONTRIBUTION_RECIPIENT_MAP_PATH", "") != "" ->
+      System.get_env("CONTRIBUTION_RECIPIENT_MAP_PATH")
+      |> File.read!()
+      |> Jason.decode!()
+
+    true ->
+      %{}
+  end
+
 config :afw,
   rpc_url: System.get_env("RPC_URL", "https://base-sepolia-rpc.publicnode.com"),
   rpc_urls: [
@@ -66,6 +81,7 @@ config :afw,
     System.get_env("CONTRIBUTION_AUTO_SUBMIT", "false") in ["1", "true", "TRUE"],
   contribution_developer_reward_address:
     System.get_env("CONTRIBUTION_DEVELOPER_REWARD_ADDRESS", ""),
+  contribution_recipient_map: recipient_map,
   world_event_cooldown_ms:
     String.to_integer(System.get_env("WORLD_EVENT_COOLDOWN_MS", "1800000")),
   simulation_ticks: String.to_integer(System.get_env("SIMULATION_TICKS", "50")),

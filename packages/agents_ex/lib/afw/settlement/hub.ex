@@ -19,6 +19,7 @@ defmodule AFW.Settlement.Hub do
 
   def submit_event(event), do: GenServer.cast(__MODULE__, {:submit, event})
   def queued_events, do: GenServer.call(__MODULE__, :queued_events)
+  def settle_now(priority), do: GenServer.call(__MODULE__, {:settle_now, priority}, 600_000)
 
   def queued_events_snapshot do
     case :ets.whereis(@queue) do
@@ -76,6 +77,14 @@ defmodule AFW.Settlement.Hub do
   @impl true
   def handle_call(:queued_events, _from, state) do
     {:reply, all_events(), state}
+  end
+
+  def handle_call({:settle_now, priority}, _from, state) do
+    events = queued(priority)
+    Enum.each(events, &settle_or_retry/1)
+
+    {:reply, %{priority: priority, attempted: length(events), pending: length(queued(priority))},
+     state}
   end
 
   defp settle_or_retry(event) do

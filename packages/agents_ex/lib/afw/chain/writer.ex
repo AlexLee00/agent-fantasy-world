@@ -94,6 +94,9 @@ defmodule AFW.Chain.Writer do
   def set_npc_price(npc_id, item_id, price),
     do: GenServer.call(__MODULE__, {:set_npc_price, npc_id, item_id, price}, 120_000)
 
+  def register_node(tier, spec, endpoint),
+    do: GenServer.call(__MODULE__, {:register_node, tier, spec, endpoint}, 120_000)
+
   @impl true
   def init(opts) do
     private_key_hex =
@@ -390,6 +393,20 @@ defmodule AFW.Chain.Writer do
     {reply, next_state} =
       attempt_write(state, fn state ->
         submit_contract_transaction(:npc_registry, "setPrice", [npc_id, item_id, price], state)
+      end)
+
+    {:reply, reply, next_state}
+  end
+
+  def handle_call({:register_node, tier, spec, endpoint}, _from, state) do
+    {reply, next_state} =
+      attempt_write(state, fn state ->
+        submit_contract_transaction(
+          :node_registry,
+          "registerNode",
+          [normalize_integer(tier), encode_node_spec(spec), endpoint],
+          state
+        )
       end)
 
     {:reply, reply, next_state}
@@ -830,6 +847,7 @@ defmodule AFW.Chain.Writer do
   defp default_gas_limit({:marketplace, "fillOrder"}), do: @market_fallback_gas_limit
   defp default_gas_limit({:agent_registry, "createAgent"}), do: @agent_fallback_gas_limit
   defp default_gas_limit({:agent_registry, "updateAgentState"}), do: @agent_fallback_gas_limit
+  defp default_gas_limit({:node_registry, "registerNode"}), do: 250_000
   defp default_gas_limit(_), do: nil
 
   defp retryable_estimate_error?(reason) do
@@ -866,5 +884,27 @@ defmodule AFW.Chain.Writer do
          speed: speed
        }) do
     [hp, max_hp, mp, max_mp, attack, defense, speed]
+  end
+
+  defp encode_node_spec(%{
+         cpu_cores: cpu_cores,
+         ram_gb: ram_gb,
+         gpu_vram_gb: gpu_vram_gb,
+         bandwidth_mbps: bandwidth_mbps
+       }) do
+    [cpu_cores, ram_gb, gpu_vram_gb, bandwidth_mbps]
+  end
+
+  defp encode_node_spec(%{
+         "cpuCores" => cpu_cores,
+         "ramGB" => ram_gb,
+         "gpuVramGB" => gpu_vram_gb,
+         "bandwidthMbps" => bandwidth_mbps
+       }) do
+    [cpu_cores, ram_gb, gpu_vram_gb, bandwidth_mbps]
+  end
+
+  defp encode_node_spec([cpu_cores, ram_gb, gpu_vram_gb, bandwidth_mbps]) do
+    [cpu_cores, ram_gb, gpu_vram_gb, bandwidth_mbps]
   end
 end
