@@ -13,6 +13,7 @@ defmodule AFWWeb.DashboardLive do
      assign(socket,
        agents: [],
        dialogue: AFW.Social.Dialogue.recent(8),
+       contribution: AFW.Contribution.ProposalStore.latest(1) |> List.first(),
        zones: AFW.World.MapState.zones(),
        combat: AFW.Combat.Stats.snapshot(),
        guardian: %{},
@@ -55,6 +56,15 @@ defmodule AFWWeb.DashboardLive do
   def handle_info({:guardian_dashboard, payload}, socket) do
     alerts = build_alerts(payload)
     {:noreply, assign(socket, guardian: payload, guardian_alerts: alerts)}
+  end
+
+  def handle_info({:contribution_epoch, _epoch, _scores, proposal}, socket) do
+    {:noreply, assign(socket, contribution: proposal)}
+  end
+
+  def handle_info({:contribution_epoch, epoch, scores}, socket) do
+    proposal = %{epoch: epoch, scores: scores, status: "legacy"}
+    {:noreply, assign(socket, contribution: proposal)}
   end
 
   def handle_info({:world_event_triggered, payload}, socket) do
@@ -148,6 +158,18 @@ defmodule AFWWeb.DashboardLive do
           <strong><%= entry.speaker %> #<%= entry.agent_id %></strong>
           <span style="color:#6b5a46;"> · <%= entry.metadata[:target] || "nearby" %></span>
           <div style="font-size:16px;line-height:1.45;"><%= entry.line %></div>
+        </div>
+      </div>
+
+      <h2>Contribution Agent</h2>
+      <div style="padding:12px;margin-bottom:16px;border-radius:14px;background:#f9f4ff;border:1px solid #ddcef2;">
+        <div :if={is_nil(@contribution)}>No reward proposal has been generated in this runtime.</div>
+        <div :if={!is_nil(@contribution)}>
+          <strong>Epoch <%= @contribution[:epoch] %></strong>
+          <div>Status: <%= @contribution[:status] || "unknown" %></div>
+          <div>Node recipients: <%= get_in(@contribution, [:summary, :nodeRecipientCount]) || 0 %></div>
+          <div>Bounty recipients: <%= get_in(@contribution, [:summary, :bountyRecipientCount]) || 0 %></div>
+          <div>Unresolved recipients: <%= get_in(@contribution, [:summary, :unresolvedRecipientCount]) || 0 %></div>
         </div>
       </div>
 

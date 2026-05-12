@@ -15,6 +15,14 @@ defmodule AFW.Contribution.Agent do
     GenServer.cast(__MODULE__, :evaluate)
   end
 
+  def evaluate_once(epoch \\ 1) do
+    github = GitHub.fetch_metrics()
+    on_chain = OnChain.fetch_metrics()
+    scores = Scorer.score(%{github: github, on_chain: on_chain})
+    proposal = Proposer.submit_epoch_rewards(epoch, scores)
+    {scores, proposal}
+  end
+
   @impl true
   def init(state) do
     schedule()
@@ -23,18 +31,22 @@ defmodule AFW.Contribution.Agent do
 
   @impl true
   def handle_cast(:evaluate, state) do
-    github = GitHub.fetch_metrics()
-    on_chain = OnChain.fetch_metrics()
-    scores = Scorer.score(%{github: github, on_chain: on_chain})
-    Proposer.submit_epoch_rewards(state.epoch, scores)
-    Phoenix.PubSub.broadcast(AFW.PubSub, "guardian", {:contribution_epoch, state.epoch, scores})
+    {scores, proposal} = evaluate_once(state.epoch)
+
+    Phoenix.PubSub.broadcast(
+      AFW.PubSub,
+      "guardian",
+      {:contribution_epoch, state.epoch, scores, proposal}
+    )
+
     {:noreply, %{state | epoch: state.epoch + 1}}
   end
 
   @impl true
   def handle_info(:evaluate, state) do
-    handle_cast(:evaluate, state)
+    {:noreply, next_state} = handle_cast(:evaluate, state)
     schedule()
+    {:noreply, next_state}
   end
 
   defp schedule do

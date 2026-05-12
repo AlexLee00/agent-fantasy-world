@@ -60,6 +60,12 @@ config :afw,
   ollama_host: System.get_env("OLLAMA_HOST", "http://localhost:11434"),
   memory_embedding_model: System.get_env("MEMORY_EMBEDDING_MODEL", "embeddinggemma"),
   dialogue_log_path: System.get_env("DIALOGUE_LOG_PATH", "../agents/logs/dialogue_stream.jsonl"),
+  contribution_proposal_path:
+    System.get_env("CONTRIBUTION_PROPOSAL_PATH", "../agents/logs/contribution_proposals"),
+  contribution_auto_submit:
+    System.get_env("CONTRIBUTION_AUTO_SUBMIT", "false") in ["1", "true", "TRUE"],
+  contribution_developer_reward_address:
+    System.get_env("CONTRIBUTION_DEVELOPER_REWARD_ADDRESS", ""),
   world_event_cooldown_ms:
     String.to_integer(System.get_env("WORLD_EVENT_COOLDOWN_MS", "1800000")),
   simulation_ticks: String.to_integer(System.get_env("SIMULATION_TICKS", "50")),

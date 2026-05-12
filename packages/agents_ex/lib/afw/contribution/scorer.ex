@@ -10,12 +10,16 @@ defmodule AFW.Contribution.Scorer do
   end
 
   def developer_scores(github) do
+    reward_address = Application.get_env(:afw, :contribution_developer_reward_address, "")
+
     [
       %{
-        address: "github:repo",
+        address: if(valid_evm_address?(reward_address), do: reward_address, else: "github:repo"),
         score:
           (github[:prs_merged] || 0) * 100 + (github[:issues_closed] || 0) * 50 +
-            (github[:commits] || 0) * 10
+            (github[:commits] || 0) * 10,
+        source: "github",
+        unresolved_recipient: not valid_evm_address?(reward_address)
       }
     ]
   end
@@ -24,14 +28,18 @@ defmodule AFW.Contribution.Scorer do
     Enum.map(nodes, fn node ->
       %{
         address: node.address,
-        score: node.inference_count * 0.6 + node.uptime_pct * 0.3 + node.quality * 0.1
+        score: node.inference_count * 0.6 + node.uptime_pct * 0.3 + node.quality * 0.1,
+        source: "node"
       }
     end)
   end
 
   def creator_scores(creators) do
     Enum.map(creators, fn creator ->
-      %{address: creator.address, score: creator.content_uses * 20}
+      %{address: creator.address, score: creator.content_uses * 20, source: "creator"}
     end)
   end
+
+  defp valid_evm_address?(value) when is_binary(value), do: value =~ ~r/^0x[0-9a-fA-F]{40}$/
+  defp valid_evm_address?(_value), do: false
 end
