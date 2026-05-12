@@ -142,6 +142,19 @@ defmodule AFW.Phase2.RewardDryRun do
     NODE_ENV=development npx hardhat run scripts/check-distribution.ts --network base-sepolia
     ```
 
+    Production readiness guard:
+
+    ```bash
+    cd packages/agents_ex
+    mix run --no-start scripts/run_phase2_production_readiness.exs
+    ```
+
+    Current production readiness status:
+
+    - Status: blocked
+    - Blocker: Tier 4 node endpoint is local-only.
+    - Blocker: production contributor payout addresses are not configured.
+
     ## Remaining Phase 2 Work
 
     - Replace the local Tier 4 smoke endpoint with an externally reachable community node.

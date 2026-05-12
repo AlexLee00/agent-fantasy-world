@@ -75,13 +75,13 @@ Readiness check:
 ## Latest Dry Run
 
 - Status: passed
-- Checked at: 2026-05-12 11:58:59.086006Z
+- Checked at: 2026-05-12 12:08:30.911449Z
 - Stored proposal count: 1
 - Proposal status: needs_recipient_mapping
 - Node recipients: 1
 - Bounty recipients: 1
 - Unresolved recipients: 1
-- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260512T115847.696156Z.json
+- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260512T120819.939999Z.json
 
 ## Command
 
@@ -96,6 +96,19 @@ Distribution readiness:
 cd packages/contracts
 NODE_ENV=development npx hardhat run scripts/check-distribution.ts --network base-sepolia
 ```
+
+Production readiness guard:
+
+```bash
+cd packages/agents_ex
+mix run --no-start scripts/run_phase2_production_readiness.exs
+```
+
+Current production readiness status:
+
+- Status: blocked
+- Blocker: Tier 4 node endpoint is local-only.
+- Blocker: production contributor payout addresses are not configured.
 
 ## Remaining Phase 2 Work
 
