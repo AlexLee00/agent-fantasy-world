@@ -74,7 +74,26 @@ Supported `TIER4_NODE_BACKEND` values:
 
 ## Register On Base Sepolia
 
-The current smoke script registers the operator wallet if it is not already registered:
+Use the production registration script for public endpoints. It verifies `GET /health`
+and `POST /infer` before sending the on-chain registration transaction:
+
+```bash
+cd packages/agents_ex
+TIER4_NODE_ENDPOINT=https://node.example.com/infer \
+mix run --no-start scripts/run_phase2_register_tier4_node.exs
+```
+
+Optional node specification variables:
+
+```bash
+TIER4_NODE_TIER=0
+TIER4_NODE_CPU_CORES=8
+TIER4_NODE_RAM_GB=32
+TIER4_NODE_GPU_VRAM_GB=16
+TIER4_NODE_BANDWIDTH_MBPS=1000
+```
+
+The smoke script is still available for local end-to-end checks:
 
 ```bash
 cd packages/agents_ex
@@ -112,10 +131,18 @@ cd packages/agents_ex
 mix run --no-start scripts/run_phase2_production_readiness.exs
 ```
 
+By default, this script performs live HTTP verification of external Tier 4 endpoints.
+For offline config-only checks, set:
+
+```bash
+PHASE2_VERIFY_TIER4_ENDPOINTS=false \
+mix run --no-start scripts/run_phase2_production_readiness.exs
+```
+
 The readiness guard must pass these checks:
 
 - Distribution contracts are configured.
 - Contributor payout mapping exists.
 - Payouts do not point to the executor wallet.
 - At least one Tier 4 node is active.
-- At least one Tier 4 endpoint is externally reachable.
+- At least one Tier 4 endpoint is externally reachable and passes `/health` plus `/infer` verification.

@@ -41,6 +41,47 @@ defmodule AFW.Contribution.ReadinessTest do
            )
   end
 
+  test "can require live verification for external tier4 endpoints" do
+    verifier = fn "https://node.example.com/infer" ->
+      {:ok, %{endpoint: "https://node.example.com/infer"}}
+    end
+
+    report =
+      Readiness.check(
+        account_address: @account,
+        contracts: contracts(),
+        recipient_map: %{"github:repo" => @contributor},
+        nodes: [%{active: true, endpoint: "https://node.example.com/infer"}],
+        verify_endpoints: true,
+        endpoint_verifier: verifier
+      )
+
+    assert report.status == :passed
+  end
+
+  test "blocks external tier4 endpoints that fail live verification" do
+    verifier = fn "https://node.example.com/infer" ->
+      {:error, %{endpoint: "https://node.example.com/infer", reason: :timeout}}
+    end
+
+    report =
+      Readiness.check(
+        account_address: @account,
+        contracts: contracts(),
+        recipient_map: %{"github:repo" => @contributor},
+        nodes: [%{active: true, endpoint: "https://node.example.com/infer"}],
+        verify_endpoints: true,
+        endpoint_verifier: verifier
+      )
+
+    assert report.status == :blocked
+
+    assert Enum.any?(
+             report.checks,
+             &(&1.id == "tier4_external_endpoint" and &1.status == :fail)
+           )
+  end
+
   defp contracts do
     %{
       afw_distributor: "0x3333333333333333333333333333333333333333",

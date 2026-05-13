@@ -3,6 +3,7 @@ defmodule AFW.Contribution.Readiness do
 
   alias AFW.Chain.Client
   alias AFW.Contribution.RecipientMap
+  alias AFW.Tier4.EndpointVerifier
 
   @distribution_keys [
     :afw_distributor,
@@ -18,13 +19,15 @@ defmodule AFW.Contribution.Readiness do
     contracts = Keyword.get(opts, :contracts, Application.get_env(:afw, :contracts, %{}))
     nodes = Keyword.get_lazy(opts, :nodes, &Client.get_node_stats/0)
     recipient_map = Keyword.get(opts, :recipient_map, RecipientMap.configured_map())
+    verify_endpoints = Keyword.get(opts, :verify_endpoints, false)
+    endpoint_verifier = Keyword.get(opts, :endpoint_verifier, &EndpointVerifier.verify/1)
 
     checks = [
       distribution_contracts_check(contracts),
       payout_mapping_check(recipient_map),
       payout_owner_check(recipient_map, account_address),
       tier4_node_check(nodes),
-      tier4_endpoint_check(nodes)
+      tier4_endpoint_check(nodes, verify_endpoints, endpoint_verifier)
     ]
 
     %{
@@ -35,13 +38,7 @@ defmodule AFW.Contribution.Readiness do
   end
 
   def external_endpoint?(endpoint) when is_binary(endpoint) do
-    case URI.parse(endpoint) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
-        not local_host?(String.downcase(host))
-
-      _ ->
-        false
-    end
+    EndpointVerifier.external_endpoint?(endpoint)
   end
 
   def external_endpoint?(_endpoint), do: false
@@ -123,7 +120,7 @@ defmodule AFW.Contribution.Readiness do
     }
   end
 
-  defp tier4_endpoint_check(nodes) do
+  defp tier4_endpoint_check(nodes, verify_endpoints, endpoint_verifier) do
     endpoints =
       nodes
       |> Enum.filter(&Map.get(&1, :active, true))
@@ -132,15 +129,48 @@ defmodule AFW.Contribution.Readiness do
 
     external = Enum.filter(endpoints, &external_endpoint?/1)
 
-    %{
-      id: "tier4_external_endpoint",
-      status: if(external == [], do: :fail, else: :pass),
-      detail:
-        if(external == [],
-          do: "No externally reachable Tier 4 endpoint found.",
-          else: "External Tier 4 endpoint(s): #{Enum.join(external, ", ")}"
-        )
-    }
+    cond do
+      external == [] ->
+        %{
+          id: "tier4_external_endpoint",
+          status: :fail,
+          detail: "No externally reachable Tier 4 endpoint found."
+        }
+
+      verify_endpoints ->
+        verified =
+          Enum.flat_map(external, fn endpoint ->
+            case endpoint_verifier.(endpoint) do
+              {:ok, result} -> [{:ok, result}]
+              {:error, reason} -> [{:error, reason}]
+            end
+          end)
+
+        passed = Enum.filter(verified, &match?({:ok, _}, &1))
+
+        %{
+          id: "tier4_external_endpoint",
+          status: if(passed == [], do: :fail, else: :pass),
+          detail: endpoint_verification_detail(verified)
+        }
+
+      true ->
+        %{
+          id: "tier4_external_endpoint",
+          status: :pass,
+          detail: "External Tier 4 endpoint(s): #{Enum.join(external, ", ")}"
+        }
+    end
+  end
+
+  defp endpoint_verification_detail(verified) do
+    verified
+    |> Enum.map(fn
+      {:ok, %{endpoint: endpoint}} -> "verified #{endpoint}"
+      {:error, %{endpoint: endpoint, reason: reason}} -> "failed #{endpoint}: #{inspect(reason)}"
+      {:error, reason} -> "failed: #{inspect(reason)}"
+    end)
+    |> Enum.join("; ")
   end
 
   defp valid_address?(address), do: RecipientMap.valid_evm_address?(address)
@@ -150,23 +180,4 @@ defmodule AFW.Contribution.Readiness do
   end
 
   defp same_address?(_left, _right), do: false
-
-  defp local_host?("localhost"), do: true
-  defp local_host?("0.0.0.0"), do: true
-  defp local_host?("::1"), do: true
-  defp local_host?("127." <> _rest), do: true
-  defp local_host?("10." <> _rest), do: true
-  defp local_host?("192.168." <> _rest), do: true
-  defp local_host?("172." <> rest), do: private_172?(rest)
-  defp local_host?(host), do: String.ends_with?(host, ".local")
-
-  defp private_172?(rest) do
-    rest
-    |> String.split(".", parts: 2)
-    |> List.first()
-    |> case do
-      nil -> false
-      value -> match?({number, ""} when number in 16..31, Integer.parse(value))
-    end
-  end
 end

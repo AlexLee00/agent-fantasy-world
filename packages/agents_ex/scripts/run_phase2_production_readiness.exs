@@ -9,7 +9,8 @@ defmodule AFW.Phase2.ProductionReadiness do
     internal_dir = Path.join(root, "docs/internal/phase2-runs")
     File.mkdir_p!(internal_dir)
 
-    report = Readiness.check()
+    verify_endpoints = System.get_env("PHASE2_VERIFY_TIER4_ENDPOINTS", "true") in ["1", "true", "TRUE"]
+    report = Readiness.check(verify_endpoints: verify_endpoints)
     timestamp = DateTime.utc_now() |> DateTime.to_iso8601(:basic)
     artifact_path = Path.join(internal_dir, "phase2_production_readiness_#{timestamp}.json")
     File.write!(artifact_path, Jason.encode_to_iodata!(report, pretty: true))

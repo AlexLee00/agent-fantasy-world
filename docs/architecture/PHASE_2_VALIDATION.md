@@ -105,6 +105,18 @@ cd packages/agents_ex
 mix run --no-start scripts/run_phase2_production_readiness.exs
 ```
 
+Public Tier 4 node registration:
+
+```bash
+cd packages/agents_ex
+TIER4_NODE_ENDPOINT=https://node.example.com/infer \
+mix run --no-start scripts/run_phase2_register_tier4_node.exs
+```
+
+The registration script verifies `GET /health` and `POST /infer` before sending the
+on-chain `NodeRegistry.registerNode` transaction. The production readiness guard now
+performs the same live endpoint verification by default.
+
 Current production readiness status:
 
 - Status: blocked
