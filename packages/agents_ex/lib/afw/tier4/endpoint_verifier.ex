@@ -1,7 +1,9 @@
 defmodule AFW.Tier4.EndpointVerifier do
   @moduledoc "Validates externally reachable Tier 4 node HTTP endpoints."
 
-  @default_timeout 5_000
+  @default_timeout 15_000
+  @default_attempts 3
+  @retry_delay_ms 1_000
 
   def verify(endpoint, opts \\ []) do
     infer_url = normalize_infer_endpoint(endpoint)
@@ -51,8 +53,13 @@ defmodule AFW.Tier4.EndpointVerifier do
   defp verify_http(infer_url, opts) do
     request = Keyword.get(opts, :request, &default_request/3)
     timeout = Keyword.get(opts, :timeout, @default_timeout)
+    attempts = Keyword.get(opts, :attempts, @default_attempts)
     health_url = health_url(infer_url)
 
+    verify_http_attempt(infer_url, health_url, request, timeout, attempts)
+  end
+
+  defp verify_http_attempt(infer_url, health_url, request, timeout, attempts_left) do
     with {:ok, health_body} <- request_ok(request, :get, health_url, timeout),
          {:ok, infer_body} <- request_ok(request, :post, infer_url, timeout),
          :ok <- validate_infer_body(infer_body) do
@@ -66,7 +73,12 @@ defmodule AFW.Tier4.EndpointVerifier do
        }}
     else
       {:error, reason} ->
-        {:error, failure(reason, infer_url, "Tier 4 endpoint verification failed.")}
+        if attempts_left > 1 do
+          Process.sleep(@retry_delay_ms)
+          verify_http_attempt(infer_url, health_url, request, timeout, attempts_left - 1)
+        else
+          {:error, failure(reason, infer_url, "Tier 4 endpoint verification failed.")}
+        end
     end
   end
 

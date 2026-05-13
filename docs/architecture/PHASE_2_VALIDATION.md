@@ -62,6 +62,19 @@ Readiness check:
 - Verified response action: `EXPLORE`
 - Operator runbook: `docs/architecture/TIER4_NODE_OPERATOR.md`
 
+## Public Tier 4 Endpoint Closure
+
+- Status: passed
+- Public endpoint: `https://calm-clowns-peel.loca.lt/infer`
+- Testnet operator: `0x695f37A1ab5857965AB2fa195fA67862cFc5A4Bf`
+- Operator funding tx: `0x6aa8a83bc08f8b5c856e3c83d23c488eb68b7acea06724a4cccad4b94b275677`
+- NodeRegistry registration tx: `0x034d3cfed8fe5a964d1aa9b4ba7f4166066c098442a81f1b11b432fa5181dd04`
+- Verified endpoint checks: `GET /health`, `POST /infer`
+
+This closes the Phase 2 Base Sepolia readiness blocker with a testnet operator
+wallet and an externally reachable endpoint. Mainnet operations must replace the
+temporary tunnel with durable hosting and contributor-owned payout addresses.
+
 ## First Reward Distribution
 
 - Status: passed
@@ -119,11 +132,13 @@ performs the same live endpoint verification by default.
 
 Current production readiness status:
 
-- Status: blocked
-- Blocker: Tier 4 node endpoint is local-only.
-- Blocker: production contributor payout addresses are not configured.
+- Status: passed on Base Sepolia testnet
+- Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T014616.343323Z.json`
+- Contributor payout map: configured for the testnet operator wallet
+- Tier 4 endpoint: externally reachable and verified
 
-## Remaining Phase 2 Work
+## Phase 2 Close Notes
 
-- Run the Tier 4 node server behind an externally reachable domain and register that endpoint with a fresh operator wallet if needed.
-- Replace the testnet deployer payout mapping with contributor-owned payout addresses before production rewards.
+- Phase 2 is closed for Base Sepolia validation.
+- The public endpoint currently uses a temporary tunnel and is suitable for testnet validation only.
+- Mainnet production must use durable Tier 4 hosting and contributor-owned payout addresses.

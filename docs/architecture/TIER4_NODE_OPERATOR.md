@@ -132,6 +132,15 @@ mix run --no-start scripts/run_phase2_production_readiness.exs
 ```
 
 By default, this script performs live HTTP verification of external Tier 4 endpoints.
+The default verification timeout is 15 seconds. Override it for slower tunnels or
+remote nodes:
+
+```bash
+PHASE2_TIER4_VERIFY_TIMEOUT_MS=30000 \
+PHASE2_TIER4_VERIFY_ATTEMPTS=5 \
+mix run --no-start scripts/run_phase2_production_readiness.exs
+```
+
 For offline config-only checks, set:
 
 ```bash
