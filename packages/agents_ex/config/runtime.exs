@@ -122,4 +122,4 @@ config :afw,
 config :afw, AFWWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT", "4000"))],
   secret_key_base: System.get_env("SECRET_KEY_BASE", String.duplicate("afw_runtime_secret_", 4)),
-  server: true
+  server: System.get_env("AFW_DISABLE_ENDPOINT") not in ["1", "true", "TRUE"]

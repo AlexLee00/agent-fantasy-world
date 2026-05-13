@@ -1,3 +1,4 @@
+System.put_env("AFW_DISABLE_ENDPOINT", "1")
 Application.ensure_all_started(:afw)
 
 alias AFW.Chain.{Client, Preflight, ReceiptDiagnostics}

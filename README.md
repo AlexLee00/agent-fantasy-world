@@ -73,7 +73,7 @@ Network: Base Sepolia (chainId 84532) | Explorer: [sepolia.basescan.org](https:/
 ```bash
 cd packages/contracts
 npm install
-NODE_ENV=development npx hardhat test    # 33 tests passing
+NODE_ENV=development npm test            # Runs Hardhat through the supported Node LTS wrapper
 ```
 
 ### Agent Engine (Python)

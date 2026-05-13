@@ -1,4 +1,5 @@
 System.put_env("AFW_DISABLE_BOOT_AGENTS", "1")
+System.put_env("AFW_DISABLE_ENDPOINT", "1")
 System.put_env("CONTRIBUTION_AUTO_SUBMIT", "false")
 Application.ensure_all_started(:afw)
 
@@ -65,6 +66,7 @@ defmodule AFW.Phase2.RewardDryRun do
   defp write_public_summary!(root, payload, artifact_path) do
     path = Path.join(root, "docs/architecture/PHASE_2_VALIDATION.md")
     distribution = distribution_report(root)
+    readiness_artifact = latest_internal_artifact(root, "phase2_production_readiness_*.json")
 
     body = """
     # Phase 2 Validation
@@ -153,7 +155,7 @@ defmodule AFW.Phase2.RewardDryRun do
 
     ```bash
     cd packages/contracts
-    NODE_ENV=development npx hardhat run scripts/check-distribution.ts --network base-sepolia
+    NODE_ENV=development npm run hardhat -- run scripts/check-distribution.ts --network base-sepolia
     ```
 
     Production readiness guard:
@@ -191,7 +193,7 @@ defmodule AFW.Phase2.RewardDryRun do
     Current production readiness status:
 
     - Status: passed on Base Sepolia testnet
-    - Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T082917.662062Z.json`
+    - Artifact: `#{readiness_artifact}`
     - Contributor payout map: configured for the testnet operator wallet
     - Tier 4 endpoint: externally reachable and verified
     - Active NodeRegistry set: 1 active node, `https://alex-macstudio.tail319c21.ts.net/infer`
@@ -214,6 +216,18 @@ defmodule AFW.Phase2.RewardDryRun do
     """
 
     File.write!(path, body)
+  end
+
+  defp latest_internal_artifact(root, pattern) do
+    root
+    |> Path.join("docs/internal/phase2-runs/#{pattern}")
+    |> Path.wildcard()
+    |> Enum.sort()
+    |> List.last()
+    |> case do
+      nil -> "not captured"
+      path -> Path.relative_to(path, root)
+    end
   end
 
   defp distribution_report(root) do

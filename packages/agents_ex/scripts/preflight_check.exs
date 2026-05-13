@@ -1,3 +1,4 @@
+System.put_env("AFW_DISABLE_ENDPOINT", "1")
 Application.ensure_all_started(:afw)
 
 case AFW.Chain.Preflight.run() do

@@ -3,25 +3,26 @@ defmodule AFW.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      {Phoenix.PubSub, name: AFW.PubSub},
-      {Registry, keys: :unique, name: AFW.AgentRegistry},
-      AFWWeb.Endpoint,
-      {AFW.Chain.Cache, []},
-      {AFW.Chain.Writer, Application.get_all_env(:afw)},
-      {AFW.Settlement.Hub, []},
-      {AFW.Settlement.Metrics, []},
-      {AFW.Reconciliation.Metrics, []},
-      {AFW.Combat.Stats, []},
-      {AFW.Simulation.Metrics, []},
-      {AFW.Memory.Store, []},
-      {AFW.Social.Dialogue, []},
-      {AFW.Contribution.ProposalStore, []},
-      {AFW.Agent.Supervisor, []},
-      {AFW.Contribution.Agent, []},
-      {AFW.Guardian.Metrics, []},
-      {AFW.Guardian.Monitor, []}
-    ]
+    children =
+      [
+        {Phoenix.PubSub, name: AFW.PubSub},
+        {Registry, keys: :unique, name: AFW.AgentRegistry},
+        {AFW.Chain.Cache, []},
+        {AFW.Chain.Writer, Application.get_all_env(:afw)},
+        {AFW.Settlement.Hub, []},
+        {AFW.Settlement.Metrics, []},
+        {AFW.Reconciliation.Metrics, []},
+        {AFW.Combat.Stats, []},
+        {AFW.Simulation.Metrics, []},
+        {AFW.Memory.Store, []},
+        {AFW.Social.Dialogue, []},
+        {AFW.Contribution.ProposalStore, []},
+        {AFW.Agent.Supervisor, []},
+        {AFW.Contribution.Agent, []},
+        {AFW.Guardian.Metrics, []},
+        {AFW.Guardian.Monitor, []}
+      ]
+      |> maybe_add_endpoint()
 
     opts = [strategy: :one_for_one, name: AFW.Supervisor]
     result = Supervisor.start_link(children, opts)
@@ -47,6 +48,14 @@ defmodule AFW.Application do
       Enum.each(Application.fetch_env!(:afw, :default_agents), fn attrs ->
         AFW.Agent.Supervisor.start_agent(attrs)
       end)
+    end
+  end
+
+  defp maybe_add_endpoint(children) do
+    if System.get_env("AFW_DISABLE_ENDPOINT") in ["1", "true", "TRUE"] do
+      children
+    else
+      List.insert_at(children, 2, AFWWeb.Endpoint)
     end
   end
 end

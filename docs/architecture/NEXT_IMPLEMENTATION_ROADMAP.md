@@ -460,7 +460,7 @@ Implementation:
 Validation:
 
 - `mix test`
-- `NODE_ENV=development npx hardhat test test/CombatResolver.test.ts`
+- `NODE_ENV=development npm run hardhat -- test test/CombatResolver.test.ts`
 - 50+ tick live run.
 
 ### Task 2: Preflight Roles and Deployed Addresses
@@ -623,4 +623,3 @@ An observer opens AFW, watches three agents live their lives for ten minutes,
 remembers their names, understands their motives, sees their assets settle,
 and wants to create something that changes their world.
 ```
-

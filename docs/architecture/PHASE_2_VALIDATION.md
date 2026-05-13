@@ -89,13 +89,13 @@ wallet and a durable externally reachable endpoint.
 ## Latest Dry Run
 
 - Status: passed
-- Checked at: 2026-05-13 08:34:19.494671Z
+- Checked at: 2026-05-13 12:10:17.447891Z
 - Stored proposal count: 1
 - Proposal status: ready_for_multisig_review
 - Node recipients: 1
 - Bounty recipients: 2
 - Unresolved recipients: 0
-- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260513T083408.157654Z.json
+- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260513T121006.039908Z.json
 
 ## Command
 
@@ -108,7 +108,7 @@ Distribution readiness:
 
 ```bash
 cd packages/contracts
-NODE_ENV=development npx hardhat run scripts/check-distribution.ts --network base-sepolia
+NODE_ENV=development npm run hardhat -- run scripts/check-distribution.ts --network base-sepolia
 ```
 
 Production readiness guard:
@@ -146,7 +146,7 @@ Set `CONTRIBUTION_VERIFY_NODE_ENDPOINTS=false` only for offline dry runs.
 Current production readiness status:
 
 - Status: passed on Base Sepolia testnet
-- Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T082917.662062Z.json`
+- Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T120759.188457Z.json`
 - Contributor payout map: configured for the testnet operator wallet
 - Tier 4 endpoint: externally reachable and verified
 - Active NodeRegistry set: 1 active node, `https://alex-macstudio.tail319c21.ts.net/infer`

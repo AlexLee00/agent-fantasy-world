@@ -17,9 +17,9 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: cd packages/contracts && npm ci
-      - run: cd packages/contracts && npx hardhat compile
-      - run: cd packages/contracts && npx hardhat test
-      - run: cd packages/contracts && npx hardhat coverage
+      - run: cd packages/contracts && npm run compile
+      - run: cd packages/contracts && npm test
+      - run: cd packages/contracts && npm run coverage
 
   agents:
     name: Agent Engine
