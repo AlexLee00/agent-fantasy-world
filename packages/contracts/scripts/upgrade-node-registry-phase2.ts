@@ -134,7 +134,12 @@ async function main() {
   );
   console.log("Upgrade tx:", upgradeReceipt?.hash);
 
-  if (!(await nodeRegistry.hasRole(slasherRole, deployer.address))) {
+  const grantedTemporarySlasherRole = !(await nodeRegistry.hasRole(
+    slasherRole,
+    deployer.address
+  ));
+
+  if (grantedTemporarySlasherRole) {
     const grantReceipt = await sendAndWait(
       nodeRegistry.grantRole(slasherRole, deployer.address, feeOverrides)
     );
@@ -159,6 +164,19 @@ async function main() {
 
   const after = await readActiveNodes(nodeRegistry);
   console.log("Active nodes after cleanup:", after);
+
+  if (
+    grantedTemporarySlasherRole &&
+    process.env.KEEP_DEPLOYER_SLASHER_ROLE !== "true"
+  ) {
+    const revokeReceipt = await sendAndWait(
+      nodeRegistry.revokeRole(slasherRole, deployer.address, feeOverrides)
+    );
+    console.log(
+      "Revoked temporary SLASHER_ROLE from deployer:",
+      revokeReceipt?.hash
+    );
+  }
 
   const updated: DeploymentsFile = {
     ...existing,
