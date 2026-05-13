@@ -20,4 +20,39 @@ defmodule AFW.Contribution.ScorerTest do
     assert [%{score: creator_score}] = result.creators
     assert creator_score == 140
   end
+
+  test "excludes inactive or verification-failed nodes from reward scores" do
+    assert [
+             %{
+               address: "0x1111111111111111111111111111111111111111",
+               score: _
+             }
+           ] =
+             AFW.Contribution.Scorer.node_scores([
+               %{
+                 active: true,
+                 reward_eligible: true,
+                 address: "0x1111111111111111111111111111111111111111",
+                 inference_count: 10,
+                 uptime_pct: 100,
+                 quality: 100
+               },
+               %{
+                 active: true,
+                 reward_eligible: false,
+                 address: "0x2222222222222222222222222222222222222222",
+                 inference_count: 100,
+                 uptime_pct: 100,
+                 quality: 100
+               },
+               %{
+                 active: false,
+                 reward_eligible: true,
+                 address: "0x3333333333333333333333333333333333333333",
+                 inference_count: 100,
+                 uptime_pct: 100,
+                 quality: 100
+               }
+             ])
+  end
 end

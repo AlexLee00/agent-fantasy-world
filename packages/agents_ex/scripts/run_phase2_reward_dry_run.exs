@@ -163,12 +163,30 @@ defmodule AFW.Phase2.RewardDryRun do
     mix run --no-start scripts/run_phase2_production_readiness.exs
     ```
 
+    Public Tier 4 node registration:
+
+    ```bash
+    cd packages/agents_ex
+    TIER4_NODE_ENDPOINT=https://node.example.com/infer \\
+    mix run --no-start scripts/run_phase2_register_tier4_node.exs
+    ```
+
+    The registration script verifies `GET /health` and `POST /infer` before sending the
+    on-chain `NodeRegistry.registerNode` transaction. The production readiness guard now
+    performs the same live endpoint verification by default.
+
     Tier 4 provider check:
 
     ```bash
     cd packages/agents_ex
     mix run --no-start scripts/run_phase2_tier4_provider_check.exs
     ```
+
+    The provider check reads on-chain nodes, prioritizes the configured durable
+    endpoint, skips failed stale endpoints, and returns a Brain Interface action.
+
+    Contribution rewards verify Tier 4 node endpoints before scoring by default.
+    Set `CONTRIBUTION_VERIFY_NODE_ENDPOINTS=false` only for offline dry runs.
 
     Current production readiness status:
 

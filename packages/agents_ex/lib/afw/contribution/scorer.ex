@@ -33,7 +33,10 @@ defmodule AFW.Contribution.Scorer do
   end
 
   def node_scores(nodes) do
-    Enum.map(nodes, fn node ->
+    nodes
+    |> Enum.filter(&Map.get(&1, :active, true))
+    |> Enum.filter(&Map.get(&1, :reward_eligible, true))
+    |> Enum.map(fn node ->
       %{
         address: node.address,
         score: node.inference_count * 0.6 + node.uptime_pct * 0.3 + node.quality * 0.1,

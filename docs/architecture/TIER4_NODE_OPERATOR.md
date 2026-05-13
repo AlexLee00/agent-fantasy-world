@@ -151,6 +151,10 @@ cd packages/agents_ex
 mix run --no-start scripts/run_phase2_tier4_provider_check.exs
 ```
 
+Contribution rewards verify registered node endpoints before scoring. A node that
+is still active on-chain but no longer answers `/health` and `/infer` is excluded
+from new reward proposals.
+
 ## Contributor Payout Map
 
 Contribution rewards require identity-to-wallet mapping before auto-submit is enabled.

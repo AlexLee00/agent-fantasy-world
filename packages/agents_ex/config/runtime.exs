@@ -82,6 +82,8 @@ config :afw,
     System.get_env("CONTRIBUTION_PROPOSAL_PATH", "../agents/logs/contribution_proposals"),
   contribution_auto_submit:
     System.get_env("CONTRIBUTION_AUTO_SUBMIT", "false") in ["1", "true", "TRUE"],
+  contribution_verify_node_endpoints:
+    System.get_env("CONTRIBUTION_VERIFY_NODE_ENDPOINTS", "true") in ["1", "true", "TRUE"],
   contribution_developer_reward_address:
     System.get_env("CONTRIBUTION_DEVELOPER_REWARD_ADDRESS", ""),
   contribution_recipient_map: recipient_map,

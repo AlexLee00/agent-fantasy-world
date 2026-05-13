@@ -89,13 +89,13 @@ wallet and a durable externally reachable endpoint.
 ## Latest Dry Run
 
 - Status: passed
-- Checked at: 2026-05-12 22:34:10.615075Z
+- Checked at: 2026-05-13 03:59:24.618918Z
 - Stored proposal count: 1
-- Proposal status: needs_recipient_mapping
+- Proposal status: ready_for_multisig_review
 - Node recipients: 1
-- Bounty recipients: 1
-- Unresolved recipients: 1
-- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260512T223359.519506Z.json
+- Bounty recipients: 2
+- Unresolved recipients: 0
+- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260513T035909.224033Z.json
 
 ## Command
 
@@ -139,6 +139,9 @@ mix run --no-start scripts/run_phase2_tier4_provider_check.exs
 
 The provider check reads on-chain nodes, prioritizes the configured durable
 endpoint, skips failed stale endpoints, and returns a Brain Interface action.
+
+Contribution rewards verify Tier 4 node endpoints before scoring by default.
+Set `CONTRIBUTION_VERIFY_NODE_ENDPOINTS=false` only for offline dry runs.
 
 Current production readiness status:
 
