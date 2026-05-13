@@ -28,7 +28,8 @@
     "serialize-javascript": "^7.0.5",
     "tmp": "^0.2.5",
     "undici": "^6.24.0",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.0",
+    "fast-uri": "^3.1.2"
   },
   "main": "index.js",
   "directories": {
