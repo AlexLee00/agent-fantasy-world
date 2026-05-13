@@ -89,13 +89,13 @@ wallet and a durable externally reachable endpoint.
 ## Latest Dry Run
 
 - Status: passed
-- Checked at: 2026-05-13 03:59:24.618918Z
+- Checked at: 2026-05-13 04:09:06.295090Z
 - Stored proposal count: 1
 - Proposal status: ready_for_multisig_review
 - Node recipients: 1
 - Bounty recipients: 2
 - Unresolved recipients: 0
-- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260513T035909.224033Z.json
+- Internal artifact: docs/internal/phase2-runs/phase2_reward_dry_run_20260513T040854.999487Z.json
 
 ## Command
 
@@ -146,9 +146,19 @@ Set `CONTRIBUTION_VERIFY_NODE_ENDPOINTS=false` only for offline dry runs.
 Current production readiness status:
 
 - Status: passed on Base Sepolia testnet
-- Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T033947.918879Z.json`
+- Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T040843.352136Z.json`
 - Contributor payout map: configured for the testnet operator wallet
 - Tier 4 endpoint: externally reachable and verified
+- Active NodeRegistry set: 1 active node, `https://alex-macstudio.tail319c21.ts.net/infer`
+
+## NodeRegistry Maintenance
+
+- NodeRegistry was upgraded on Base Sepolia to support endpoint updates, self-deactivation, slasher deactivation, and active node pruning.
+- New implementation: `0xCbbED537faD3a67B883cD7e475889b5cC6065bA2`
+- Verified source: `https://sepolia.basescan.org/address/0xCbbED537faD3a67B883cD7e475889b5cC6065bA2#code`
+- Stale endpoints removed from the active set:
+  - `http://127.0.0.1:18791/infer`
+  - `https://calm-clowns-peel.loca.lt/infer`
 
 ## Phase 2 Close Notes
 

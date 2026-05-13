@@ -51,6 +51,7 @@ contract NodeRegistry is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
 
     event NodeRegistered(address indexed operator, NodeTier tier, string endpoint);
     event NodeDeactivated(address indexed operator);
+    event NodeEndpointUpdated(address indexed operator, string endpoint);
     event RewardClaimed(address indexed operator, uint256 amount);
     event NodeSlashed(address indexed operator, uint256 amount, uint8 reason);
     event WorldExpanded(uint256 newZoneId, address triggeredBy);
@@ -73,7 +74,9 @@ contract NodeRegistry is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
         string calldata endpoint
     ) external {
         require(!nodes[msg.sender].isActive, "NodeRegistry: already registered");
+        require(bytes(endpoint).length > 0, "NodeRegistry: empty endpoint");
         uint256 required = _getRequiredStake(tier);
+        _removeActiveNode(msg.sender);
 
         nodes[msg.sender] = NodeInfo({
             operator: msg.sender,
@@ -91,6 +94,21 @@ contract NodeRegistry is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
         activeNodes.push(msg.sender);
         emit NodeRegistered(msg.sender, tier, endpoint);
         _checkWorldExpansion();
+    }
+
+    function updateEndpoint(string calldata endpoint) external {
+        require(nodes[msg.sender].isActive, "NodeRegistry: not active");
+        require(bytes(endpoint).length > 0, "NodeRegistry: empty endpoint");
+        nodes[msg.sender].endpoint = endpoint;
+        emit NodeEndpointUpdated(msg.sender, endpoint);
+    }
+
+    function deactivateNode() external {
+        _deactivateNode(msg.sender);
+    }
+
+    function deactivateNode(address node) external onlyRole(SLASHER_ROLE) {
+        _deactivateNode(node);
     }
 
     function calculateReward(address node) public view returns (uint256) {
@@ -122,8 +140,7 @@ contract NodeRegistry is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
         info.totalSlashings++;
 
         if (info.stakedAFW < _getRequiredStake(info.tier)) {
-            info.isActive = false;
-            emit NodeDeactivated(node);
+            _deactivateNode(node);
         }
 
         emit NodeSlashed(node, amount, reason);
@@ -145,6 +162,27 @@ contract NodeRegistry is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
         uint256 active = activeNodes.length;
         if (active == 10 || active == 50 || active == 200) {
             emit WorldExpanded(active, msg.sender);
+        }
+    }
+
+    function _deactivateNode(address node) internal {
+        NodeInfo storage info = nodes[node];
+        require(info.isActive, "NodeRegistry: not active");
+        info.isActive = false;
+        _removeActiveNode(node);
+        emit NodeDeactivated(node);
+    }
+
+    function _removeActiveNode(address node) internal {
+        uint256 length = activeNodes.length;
+        for (uint256 i = 0; i < length; i++) {
+            if (activeNodes[i] == node) {
+                if (i != length - 1) {
+                    activeNodes[i] = activeNodes[length - 1];
+                }
+                activeNodes.pop();
+                return;
+            }
         }
     }
 
