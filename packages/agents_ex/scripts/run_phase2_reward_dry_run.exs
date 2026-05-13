@@ -107,6 +107,19 @@ defmodule AFW.Phase2.RewardDryRun do
     - Verified response action: `EXPLORE`
     - Operator runbook: `docs/architecture/TIER4_NODE_OPERATOR.md`
 
+    ## Public Tier 4 Endpoint Closure
+
+    - Status: passed
+    - Durable public endpoint: `https://alex-macstudio.tail319c21.ts.net/infer`
+    - Hosting mode: macOS `launchd` service plus Tailscale Funnel
+    - Testnet operator: `0x6cc7180C260b6f4923467C823d6fE3A057B5a314`
+    - Operator funding tx: `0x1c1c890a8e5c5839d8f52235ec93c97dd733da44eea4909e89723bf874caceb5`
+    - NodeRegistry registration tx: `0xde52e4c5e48d7e1c2970aba51252983c244e37d3362468dce4060a5c46e68189`
+    - Verified endpoint checks: `GET /health`, `POST /infer`
+
+    This closes the Phase 2 Base Sepolia readiness blocker with a testnet operator
+    wallet and a durable externally reachable endpoint.
+
     ## First Reward Distribution
 
     - Status: passed
@@ -150,16 +163,25 @@ defmodule AFW.Phase2.RewardDryRun do
     mix run --no-start scripts/run_phase2_production_readiness.exs
     ```
 
+    Tier 4 provider check:
+
+    ```bash
+    cd packages/agents_ex
+    mix run --no-start scripts/run_phase2_tier4_provider_check.exs
+    ```
+
     Current production readiness status:
 
-    - Status: blocked
-    - Blocker: Tier 4 node endpoint is local-only.
-    - Blocker: production contributor payout addresses are not configured.
+    - Status: passed on Base Sepolia testnet
+    - Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T033947.918879Z.json`
+    - Contributor payout map: configured for the testnet operator wallet
+    - Tier 4 endpoint: externally reachable and verified
 
-    ## Remaining Phase 2 Work
+    ## Phase 2 Close Notes
 
-    - Run the Tier 4 node server behind an externally reachable domain and register that endpoint with a fresh operator wallet if needed.
-    - Replace the testnet deployer payout mapping with contributor-owned payout addresses before production rewards.
+    - Phase 2 is closed for Base Sepolia validation.
+    - The public endpoint now uses Tailscale Funnel with a persistent MagicDNS hostname.
+    - Mainnet production must still replace the testnet operator wallet with contributor-owned payout addresses.
     """
 
     File.write!(path, body)

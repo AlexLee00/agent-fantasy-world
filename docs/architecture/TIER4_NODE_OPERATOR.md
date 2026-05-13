@@ -141,6 +141,16 @@ mix run --no-start scripts/run_phase2_tier4_node_smoke.exs
 
 Important: the current `NodeRegistry` contract does not expose an endpoint update function. If a wallet was already registered with a local URL, use a fresh operator wallet for the public node or add an upgrade/migration in a later phase.
 
+## Verify Provider Routing
+
+After registering a public node, verify that the Tier 4 Brain provider can route
+around stale endpoints and return an action:
+
+```bash
+cd packages/agents_ex
+mix run --no-start scripts/run_phase2_tier4_provider_check.exs
+```
+
 ## Contributor Payout Map
 
 Contribution rewards require identity-to-wallet mapping before auto-submit is enabled.

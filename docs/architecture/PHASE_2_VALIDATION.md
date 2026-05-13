@@ -130,10 +130,20 @@ The registration script verifies `GET /health` and `POST /infer` before sending 
 on-chain `NodeRegistry.registerNode` transaction. The production readiness guard now
 performs the same live endpoint verification by default.
 
+Tier 4 provider check:
+
+```bash
+cd packages/agents_ex
+mix run --no-start scripts/run_phase2_tier4_provider_check.exs
+```
+
+The provider check reads on-chain nodes, prioritizes the configured durable
+endpoint, skips failed stale endpoints, and returns a Brain Interface action.
+
 Current production readiness status:
 
 - Status: passed on Base Sepolia testnet
-- Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T023454.676233Z.json`
+- Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T033947.918879Z.json`
 - Contributor payout map: configured for the testnet operator wallet
 - Tier 4 endpoint: externally reachable and verified
 
