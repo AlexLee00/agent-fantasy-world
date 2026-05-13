@@ -60,6 +60,44 @@ The registered endpoint should be:
 https://node.example.com/infer
 ```
 
+## Durable macOS Hosting With Tailscale Funnel
+
+For a persistent testnet node on Jay's Mac Studio, run the Tier 4 node under
+`launchd` and expose it through Tailscale Funnel.
+
+Install or update the launch agent:
+
+```bash
+cd packages/agents_ex
+TIER4_NODE_BACKEND=afw-basic \
+TIER4_NODE_PORT=18791 \
+TIER4_NODE_PUBLIC_URL=https://alex-macstudio.tail319c21.ts.net \
+./scripts/install_tier4_launchd.sh
+```
+
+Expose the local node publicly:
+
+```bash
+tailscale funnel --bg --yes 18791
+```
+
+Verify:
+
+```bash
+curl https://alex-macstudio.tail319c21.ts.net/health
+curl -X POST https://alex-macstudio.tail319c21.ts.net/infer \
+  -H 'content-type: application/json' \
+  -d '{"prompt":"Choose one safe AFW action.","event":{"target":"lumenveil"}}'
+```
+
+Stop durable hosting:
+
+```bash
+cd packages/agents_ex
+./scripts/uninstall_tier4_launchd.sh
+tailscale funnel reset
+```
+
 ## Backend Selection
 
 Supported `TIER4_NODE_BACKEND` values:

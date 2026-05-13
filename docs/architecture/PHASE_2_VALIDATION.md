@@ -65,15 +65,15 @@ Readiness check:
 ## Public Tier 4 Endpoint Closure
 
 - Status: passed
-- Public endpoint: `https://calm-clowns-peel.loca.lt/infer`
-- Testnet operator: `0x695f37A1ab5857965AB2fa195fA67862cFc5A4Bf`
-- Operator funding tx: `0x6aa8a83bc08f8b5c856e3c83d23c488eb68b7acea06724a4cccad4b94b275677`
-- NodeRegistry registration tx: `0x034d3cfed8fe5a964d1aa9b4ba7f4166066c098442a81f1b11b432fa5181dd04`
+- Durable public endpoint: `https://alex-macstudio.tail319c21.ts.net/infer`
+- Hosting mode: macOS `launchd` service plus Tailscale Funnel
+- Testnet operator: `0x6cc7180C260b6f4923467C823d6fE3A057B5a314`
+- Operator funding tx: `0x1c1c890a8e5c5839d8f52235ec93c97dd733da44eea4909e89723bf874caceb5`
+- NodeRegistry registration tx: `0xde52e4c5e48d7e1c2970aba51252983c244e37d3362468dce4060a5c46e68189`
 - Verified endpoint checks: `GET /health`, `POST /infer`
 
 This closes the Phase 2 Base Sepolia readiness blocker with a testnet operator
-wallet and an externally reachable endpoint. Mainnet operations must replace the
-temporary tunnel with durable hosting and contributor-owned payout addresses.
+wallet and a durable externally reachable endpoint.
 
 ## First Reward Distribution
 
@@ -133,12 +133,12 @@ performs the same live endpoint verification by default.
 Current production readiness status:
 
 - Status: passed on Base Sepolia testnet
-- Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T014616.343323Z.json`
+- Artifact: `docs/internal/phase2-runs/phase2_production_readiness_20260513T023454.676233Z.json`
 - Contributor payout map: configured for the testnet operator wallet
 - Tier 4 endpoint: externally reachable and verified
 
 ## Phase 2 Close Notes
 
 - Phase 2 is closed for Base Sepolia validation.
-- The public endpoint currently uses a temporary tunnel and is suitable for testnet validation only.
-- Mainnet production must use durable Tier 4 hosting and contributor-owned payout addresses.
+- The public endpoint now uses Tailscale Funnel with a persistent MagicDNS hostname.
+- Mainnet production must still replace the testnet operator wallet with contributor-owned payout addresses.
