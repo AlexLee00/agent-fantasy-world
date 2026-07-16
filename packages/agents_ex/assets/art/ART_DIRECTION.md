@@ -1,14 +1,16 @@
-# AFW Art Direction — 32px Pixel Art (v1)
+# AFW Art Direction — 32px Pixel Art (v1.1)
 
-> Status: v1 — approved 2026-07-16 (S2 C-2).
+> Status: v1.1 — approved 2026-07-16 (S2 C-2 + style sprint; RO direction
+> approved by master with the v4 probes).
 > This document is the single source of truth for AFW's visual identity and
 > MUST be included verbatim in every asset-generation prompt.
 
 ## 1. Core Identity
 
-Warm, high-contrast 32px pixel art. Saturated colors, minimal outlines,
-readable silhouettes at 1x and 2x display scale. Reference mood:
-Eastward / CrossCode — cozy but adventurous, never grimdark.
+Warm 32px pixel art. Saturated colors, soft-but-readable silhouettes at 1x
+and 2x display scale. Reference mood: **Ragnarok Online (Prontera)** —
+bright, storybook, cute; secondary references Eastward / CrossCode for
+pixel-technique rigor. Never grimdark. See §7 for the binding style rules.
 
 Non-negotiables:
 
@@ -123,3 +125,51 @@ fight rest trade talk` — 16 frames, packed left-to-right, single row per class
 All assets are original work, released as **CC0** (public domain dedication),
 consistent with the project's open-source guide. No third-party asset may be
 traced or color-swapped.
+
+## 7. Style Rules v1.1 — Ragnarok Online direction (sprint 2026-07-16)
+
+Master direction: RO/Prontera shape language on the fixed palette.
+The v4 probes under `assets/art/svg/hub/` (tile_hub_plaza_a,
+building_hub_tavern, npc_hub_merchant) are the binding reference —
+every new batch must match their construction.
+
+### 7.1 Shading & ramps (from the reference-research sprint)
+- Exactly 3 tones per material (shadow/base/highlight); 2 tones on ground.
+- Hue-shifted ramps only. Warm master ramp: C -> S -> E -> T -> K.
+  Wood: S -> L -> D -> K. Stone: C -> W -> d -> K. Roof: G -> R -> T -> K.
+  Blue: C -> l -> b -> K. Red cloth: C -> r -> T -> K.
+- Cluster shading (one big shadow shape bottom-right, one highlight cluster
+  top-left); clusters <3px are noise. No pillow shading. Anti-banding:
+  stagger tone boundaries by 2px+ runs.
+- Never shade warm materials with cool colors; never r against b without
+  ink/cream between.
+
+### 7.2 Characters (RO style)
+- Round balloon head, ~45% of sprite height, no flat top / square jaw.
+- Eyes: 2x3 ink blocks with 1px cream catchlight, low on the face, 4px apart.
+  Optional 1px earth blush. Mouth <=2x1 or none.
+- Glossy hair: wood-dark base + wood-light crescent highlight + fringe/side
+  tufts breaking the silhouette.
+- Soft outlines: ink only on bottom/right silhouette; top/left self-outlines
+  in the local material's dark step (D hair, T cloth).
+- Mitten hands, short legs, limbs >=2px; no 90-degree silhouette corners.
+
+### 7.3 Buildings (RO/Prontera, top-down 3/4)
+- Two planes only: roof (55-60% of height) + south facade; contact shadow.
+- Smooth cream plaster walls + stone corner quoins (W/s alternating blocks).
+- Round arches on doors/windows with a gold keystone; warm gold-lit glass
+  with cream glints; scalloped two-tone shingles (R base, T scallop courses)
+  with a gilded G ridge; round attic window on the roof plane.
+- Life props: pennant banners, striped awnings, lantern strings, hanging
+  signs — at least two per building, placed asymmetrically.
+
+### 7.4 Ground tiles
+- Quiet: 2 adjacent tones (no ink/cream), meandering mortar with 1-2px jogs
+  (no straight full-width lines), per-stone tone variation, detail clusters
+  wrap tile edges, verify a 4x4 repeat shows no grid rhythm.
+
+### 7.5 Authoring workflow
+- Author sprites as `.px` text grids under `assets/art/px/<category>/`
+  (legend header + grid; see existing files), convert with
+  `scripts/px2svg.py`, verify with `scripts/build_sprites.sh` (palette gate)
+  and render `scripts/make_preview.py` for the TS-4 master preview.
