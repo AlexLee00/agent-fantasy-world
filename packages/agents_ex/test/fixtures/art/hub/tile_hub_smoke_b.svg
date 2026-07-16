@@ -1,0 +1,8 @@
+<!-- AFW 32px | palette: hub | ART_DIRECTION v1 (pipeline smoke fixture) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" shape-rendering="crispEdges">
+  <rect x="0" y="0" width="32" height="32" fill="#B8935E"/>
+  <rect x="2" y="2" width="10" height="6" fill="#C24E4E"/>
+  <rect x="18" y="6" width="8" height="8" fill="#4E7AA6"/>
+  <rect x="8" y="20" width="6" height="6" fill="#E8C86A"/>
+  <rect x="24" y="24" width="4" height="4" fill="#2A2119"/>
+</svg>
