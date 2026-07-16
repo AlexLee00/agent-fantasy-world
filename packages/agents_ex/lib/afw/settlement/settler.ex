@@ -99,6 +99,23 @@ defmodule AFW.Settlement.Settler do
     Writer.trigger_event_treasury_check()
   end
 
+  # S1 M-4: region transition on the open map. Reuses the existing agent
+  # state write path — zone_id is reinterpreted as region_id (WorldMap
+  # contract unchanged). Stats/status are passed through untouched.
+  defp execute(%{type: :region_transition, data: data}) do
+    agent = Client.get_agent_fresh_state(data.agent_id)
+
+    Writer.update_agent_state(
+      data.agent_id,
+      agent["stats"],
+      0,
+      data.zone_id,
+      agent["statusId"] || 1
+    )
+  rescue
+    error -> {:discard, Exception.message(error)}
+  end
+
   defp execute(%{type: :agent_created, data: data}) do
     Writer.create_agent(data.class_id, data.personality)
   end

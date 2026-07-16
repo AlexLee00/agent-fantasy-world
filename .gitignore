@@ -88,5 +88,9 @@ deps/
 .elixir_ls/
 *.ez
 erl_crash.dump
+
+# Phase 3 S1 — derived world grid cache & local run logs
+packages/agents_ex/priv/world/grid.bin
+packages/agents_ex/logs/
 # Guardian logs
 packages/agents/logs/
