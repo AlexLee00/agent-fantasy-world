@@ -88,6 +88,22 @@ defmodule AFW.Chain.Reader do
     }
   end
 
+  # S1: Havenmoor hub exists only off-chain — WorldMap keeps regions 1-4.
+  def get_zone(5) do
+    %{
+      "zoneId" => 5,
+      "name" => "Havenmoor",
+      "koreanName" => "Havenmoor",
+      "dangerId" => 1,
+      "dangerLabel" => "SAFE",
+      "requiredNodes" => 0,
+      "maxAgents" => 0,
+      "isUnlocked" => true,
+      "connections" => [1, 2, 3, 4],
+      "unlockedAt" => 0
+    }
+  end
+
   def get_zone(zone_id) do
     Cache.get_or_fetch({:zone, zone_id}, @zone_ttl, fn ->
       [zone_tuple] = call_contract(:world_map, "getZone", [zone_id])

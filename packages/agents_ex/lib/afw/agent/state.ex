@@ -9,6 +9,8 @@ defmodule AFW.Agent.State do
     :tick_interval,
     :brain_module,
     :zone_id,
+    :pos,
+    :dest,
     :level,
     :experience,
     :status,
@@ -19,6 +21,7 @@ defmodule AFW.Agent.State do
     :tick_count,
     :max_ticks,
     :post_combat_cooldown,
-    :consecutive_trades
+    :consecutive_trades,
+    path: []
   ]
 end
