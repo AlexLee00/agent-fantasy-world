@@ -10,6 +10,16 @@ defmodule AFW.Agent.MovementTest do
 
   setup do
     on_exit(fn ->
+      # barrier: submit_event is a cast — a synchronous call to the Hub
+      # guarantees every in-flight cast has been processed before cleanup
+      if Process.whereis(AFW.Settlement.Hub) do
+        try do
+          AFW.Settlement.Hub.queued_events()
+        catch
+          _, _ -> :ok
+        end
+      end
+
       case :ets.whereis(:event_queue) do
         :undefined ->
           :ok
