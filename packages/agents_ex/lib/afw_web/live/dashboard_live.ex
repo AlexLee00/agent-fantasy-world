@@ -111,7 +111,8 @@ defmodule AFWWeb.DashboardLive do
           </div>
         </div>
         <div style="margin-top:8px;color:#6b5a46;font-size:13px;">
-          Phaser 4 viewer. Click an agent marker to inspect its on-chain state and memory.
+          Phaser 4 open-map viewer. Drag to pan, wheel to zoom, click an agent to follow it
+          (ESC frees the camera), shift+click to inspect its on-chain state and memory.
         </div>
       </div>
 
