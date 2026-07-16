@@ -1,6 +1,7 @@
 defmodule AFW.Agent.Loop do
   @moduledoc "Tick execution for Elixir agents using optimistic settlement as the write path."
 
+  alias AFW.Agent.Movement
   alias AFW.Brain.PromptBuilder
   alias AFW.Chain.{Client, Reader}
   alias AFW.Economy.Constants
@@ -66,8 +67,10 @@ defmodule AFW.Agent.Loop do
           end
       end
 
+    action_name = decision["action"] || decision[:action] || "EXPLORE"
+
     result =
-      case decision["action"] || decision[:action] do
+      case action_name do
         "FIGHT" -> fight(context, event)
         "REST" -> rest(context)
         "TRADE" -> trade(context)
@@ -76,8 +79,12 @@ defmodule AFW.Agent.Loop do
         _ -> explore(context, event)
       end
 
+    # S1 M-3/M-4: tile-based movement along an A* path; region boundary
+    # crossings submit a :region_transition settlement event (BATCH).
+    movement = Movement.step(state, context, action_name)
+
     next_cooldown =
-      case decision["action"] || decision[:action] do
+      case action_name do
         "FIGHT" -> 2
         "REST" -> 0
         _ when state.post_combat_cooldown > 0 -> max(state.post_combat_cooldown - 1, 0)
@@ -86,7 +93,7 @@ defmodule AFW.Agent.Loop do
 
     history_entry = %{
       tick: state.tick_count + 1,
-      action: decision["action"] || decision[:action] || "EXPLORE",
+      action: action_name,
       target: decision["target"] || decision[:target] || "",
       summary: result.summary,
       event: event.type,
@@ -99,7 +106,11 @@ defmodule AFW.Agent.Loop do
         history: (state.history || []) ++ [history_entry],
         last_action: history_entry,
         post_combat_cooldown: next_cooldown,
-        consecutive_trades: next_trade_streak(state, decision["action"] || decision[:action])
+        consecutive_trades: next_trade_streak(state, action_name),
+        pos: movement.pos,
+        dest: movement.dest,
+        path: movement.path,
+        zone_id: if(movement.region > 0, do: movement.region, else: state.zone_id)
     }
 
     record_memory(next_state.agent_id, history_entry)

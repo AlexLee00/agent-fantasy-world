@@ -39,6 +39,7 @@ defmodule AFW.Agent.Supervisor do
              class_id: class_id,
              personality: personality,
              label: label,
+             pos: Map.get(attrs, :pos),
              tick_interval: Map.get(attrs, :tick_interval),
              max_ticks: Map.get(attrs, :max_ticks),
              brain_module: Map.get(attrs, :brain_module)

@@ -29,23 +29,46 @@ defmodule AFW.World.MapStateTest do
     assert view.y == MapState.agent_view(state).y
   end
 
-  test "exposes four map zones" do
-    assert ["Lumenveil", "Graymarch", "Embervault", "Voidreach"] =
+  test "projects tile positions onto the open map and resolves the region" do
+    state = %{
+      agent_id: 7,
+      label: "Ranger",
+      class_id: 3,
+      zone_id: 1,
+      tick_count: 3,
+      pos: {256, 256},
+      stats: %{hp: 90, max_hp: 100},
+      last_action: %{action: "EXPLORE", summary: "Wandering the plaza"}
+    }
+
+    view = MapState.agent_view(state)
+
+    assert view.x == 256 * 32 + 16
+    assert view.y == 256 * 32 + 16
+    assert view.zone_id == 5
+    assert view.zone == "Havenmoor"
+  end
+
+  test "exposes the five open-map regions with the hub first" do
+    assert ["Havenmoor", "Lumenveil", "Graymarch", "Embervault", "Voidreach"] =
              Enum.map(MapState.zones(), & &1.name)
   end
 
-  test "ships a Tiled overview map matching the runtime zones" do
+  test "ships a Tiled open map matching the runtime regions" do
     path =
       Path.expand(
-        "../../../priv/static/assets/maps/aethermoor_overview.tmj",
+        "../../../priv/static/assets/maps/aethermoor_open.tmj",
         __DIR__
       )
 
     map = path |> File.read!() |> Jason.decode!()
-    zone_layer = Enum.find(map["layers"], &(&1["name"] == "zones"))
+    region_layer = Enum.find(map["layers"], &(&1["name"] == "regions"))
 
     assert map["type"] == "map"
-    assert length(zone_layer["objects"]) == 4
-    assert Enum.map(zone_layer["objects"], & &1["name"]) == Enum.map(MapState.zones(), & &1.name)
+    assert map["width"] == 512 and map["height"] == 512
+    assert length(region_layer["objects"]) == 5
+
+    assert Enum.map(region_layer["objects"], & &1["name"]) ==
+             Enum.map(MapState.zones(), & &1.name)
   end
 end
