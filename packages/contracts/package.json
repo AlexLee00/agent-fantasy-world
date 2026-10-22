@@ -27,7 +27,7 @@
   "overrides": {
     "axios": "^1.15.2",
     "cookie": "^0.7.0",
-    "follow-redirects": "^1.16.0",
+    "follow-redirects": "^1.16.1",
     "lodash": "^4.18.1",
     "serialize-javascript": "^7.0.5",
     "tmp": "^0.2.5",
